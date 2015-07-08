@@ -5,7 +5,7 @@
 #include "MySensor.h"
 #include "LSM303DLH.h"
 
-#define IMU_STORE_SIZE      128
+#define IMU_STORE_SIZE      	128
 #define IMU_THREAD_STACK_SIZE   512
 
 class IMUSensor: public MySensor {

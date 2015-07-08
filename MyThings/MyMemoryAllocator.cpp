@@ -7,7 +7,8 @@
 #endif
 #include "MyDebug.h"
 
-#define ALLOC_MEM_SIZE 8192
+//#define ALLOC_MEM_SIZE 8192
+#define ALLOC_MEM_SIZE 14080
 
 char memory[ALLOC_MEM_SIZE] __attribute((section("AHBSRAM0")));
 MyMemoryAllocator memAlloc(memory,ALLOC_MEM_SIZE);

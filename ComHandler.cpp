@@ -12,9 +12,10 @@
 #define COM_HANDLER_THREAD_STACK_SIZE   3*1024
 #define COM_HANDLER_MIN_PKTSZ			128
 
-ComHandler::ComHandler(MyCallBack *callback, const char* idProduct): MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE) {
+ComHandler::ComHandler(MyCallBack *callback, const char* idProduct, char *pTXBuff, uint16_t maxBuff): MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE) {
 	cb = callback;
-	maxLen = XFER_BUFF_SZ;
+	TXBuff = pTXBuff;
+	maxLen = maxBuff;
 	currLen = sizeof(frameHdr);
 	memcpy(hdr.imei,idProduct,15);
 	memset(hdr.idCfg,0xa5,40);
@@ -43,14 +44,14 @@ void ComHandler::Main() {
 void ComHandler::DoServerRequest(void) {
 	char data[XFER_BUFF_SZ];
 	memset(data,0,XFER_BUFF_SZ);
-	// Protect access to XFerBuff	
+	// Protect access to TXBuff	
 	BuffMtx.lock();
 	FillHeader();
     DBG("Reporting Results (%d) ...\n",currLen);
-	DBG_MEMDUMP("TXData",(char*)XFerBuff, currLen);
+	DBG_MEMDUMP("TXData",(char*)TXBuff, currLen);
 	// Create the exchange buffers (becarefull with thread stack)
 	// /!\ WORKAROUND +1 (http client miss 1byte)
-	HTTPRawData httpDataOut(XFerBuff, currLen+1);
+	HTTPRawData httpDataOut(TXBuff, currLen+1);
 	HTTPRawData httpDataIn(data, XFER_BUFF_SZ);
 	int ret = http.post("http://pyrn-m2m.zagett.com:50007/index2.php", httpDataOut, &httpDataIn);
 	int sz = httpDataIn.getRcvdLen();
@@ -77,10 +78,10 @@ bool ComHandler::AddResults(uint8_t SensorType, char *data, uint16_t len) {
 	bool ret = false;
 	if( (currLen + len + 2) < maxLen) {
 		BuffMtx.lock();
-		XFerBuff[currLen++] = SensorType;
-		XFerBuff[currLen++] = (char) (len) & 0xff;
-		XFerBuff[currLen++] = (char) (len>>8) & 0xff;
-		memcpy(XFerBuff+currLen,data,len);
+		TXBuff[currLen++] = SensorType;
+		TXBuff[currLen++] = (char) (len) & 0xff;
+		TXBuff[currLen++] = (char) (len>>8) & 0xff;
+		memcpy(TXBuff+currLen,data,len);
 		currLen+=len;
 		ret = true;
 		DBG("ADD[%d] %d data now currLen = %d/%d",SensorType, len+3, currLen, maxLen);
@@ -98,6 +99,6 @@ void ComHandler::FillHeader() {
 	hdr.newSess = (first)?'1':'0';
 	if(first)
 		first = false;
-	memcpy(XFerBuff,(char*)&hdr,sizeof(frameHdr));
+	memcpy(TXBuff,(char*)&hdr,sizeof(frameHdr));
 }
 

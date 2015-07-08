@@ -35,7 +35,9 @@
 //#define THREAD_MONITOR
 //#define APP_TEST
 //#define APP_SHARKAN
-//#define CAN_SIMULATOR
+#define CAN_SIMULATOR
+
+#define COMHANDLER_BS		8192
 
 char dataResult[1024] __attribute((section("AHBSRAM0")));
 
@@ -129,9 +131,12 @@ void MainClass::run(void) {
 	
 		// Set a wdt with 60s timer
 		MyWatchdog wdt(60);
+		
+		// Allocate Space for data
+		char *pTXBuff = (char*) memAlloc.malloc(COMHANDLER_BS);
 
 		// 3G
-		ComHandler comm(this,"AAAAAAAAAAAAAAA");
+		ComHandler comm(this,"AAAAAAAAAAAAAAA",pTXBuff,COMHANDLER_BS);
 		//ComHandler comm(this,"012345678901234");
 
 		// CAN 
