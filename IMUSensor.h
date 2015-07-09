@@ -4,13 +4,15 @@
 #include "mbed.h"
 #include "MySensor.h"
 #include "LSM303DLH.h"
+#include "MyMemoryAllocator.h"
 
 #define IMU_STORE_SIZE      	128
 #define IMU_THREAD_STACK_SIZE   512
 
-class IMUSensor: public MySensor {
+class IMUSensor: public MySensor, public MyMemoryObject {
 protected:
     uint16_t store[IMU_STORE_SIZE];
+    unsigned char stack[IMU_THREAD_STACK_SIZE];
     typedef struct _imuImpact{
     	uint8_t	ver;
     	uint32_t t; 
@@ -24,7 +26,7 @@ protected:
     imuImpact   impact;
     LSM303DLH   Accelerometer;
 public:
-    IMUSensor(PinName sda, PinName scl, uint32_t idle = 1000, uint32_t stackSz = IMU_THREAD_STACK_SIZE, unsigned char* sp = NULL);
+    IMUSensor(PinName sda, PinName scl, uint32_t idle = 1000);
     virtual void InitResultsStatic(void);
     virtual void Loop(void);
     virtual void StoreLastImpact(void);

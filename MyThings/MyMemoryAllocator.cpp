@@ -8,7 +8,7 @@
 #include "MyDebug.h"
 
 //#define ALLOC_MEM_SIZE 8192
-#define ALLOC_MEM_SIZE 14080
+#define ALLOC_MEM_SIZE 15104
 
 char memory[ALLOC_MEM_SIZE] __attribute((section("AHBSRAM0")));
 MyMemoryAllocator memAlloc(memory,ALLOC_MEM_SIZE);
@@ -28,10 +28,17 @@ MyMemoryAllocator::MyMemoryAllocator(char *m, uint16_t sz) {
 void MyMemoryAllocator::PrintResume(void) {
 	MemBlock *pBlock = head;	
 	uint16_t i = 0;
-	DBG("START %p",pBlock);
+	uint16_t sum = 0;
+	DBG("START %p[%d]",pBlock,memorySize);
 	while(pBlock){
+		sum += pBlock->sz;
 		DBG("%d - %p - %d - %p - %p - %s",i++,pBlock, pBlock->sz, pBlock->prev, pBlock->next, (pBlock->status==FREE)?"FREE":"INUSE"); 
 		pBlock = pBlock->next;
+	}
+	if(sum>memorySize) {
+		DBG("MemoryAllocator fault %d>%d",sum,memorySize);
+		//wait(1000);
+		//NVIC_SystemReset();
 	}
 	DBG("END");
 }
@@ -84,7 +91,7 @@ void* MyMemoryAllocator::malloc(uint16_t sz) {
 				MemBlock *nextBlock = (MemBlock*)(pBlock->data + sz);
 				if(pBlock->next)
 					pBlock->next->prev = nextBlock;
-				nextBlock->sz = pBlock->sz - sizeof(MemBlock);
+				nextBlock->sz = pBlock->sz - (sizeof(MemBlock) + sz);
 				nextBlock->data = (char*)nextBlock + sizeof(MemBlock);
 				nextBlock->status = FREE;
 				nextBlock->prev = pBlock;
@@ -94,12 +101,14 @@ void* MyMemoryAllocator::malloc(uint16_t sz) {
 				pBlock->status = INUSE;
 				pBlock->next = nextBlock;
 				memAccess.unlock();
+				PrintResume();
 				return (void*)pBlock->data;
 			}
 		}
 		pBlock = pBlock->next;
 	}
 	memAccess.unlock();
+	PrintResume();
 	return NULL;	
 }
 
@@ -143,7 +152,7 @@ void* MyMemoryObject::operator new(size_t sz, void* v) {
 
 // Placement new operator
 void* MyMemoryObject::operator new(size_t sz) {
-    DBG("New instanciation");
+    DBG("New instanciation %d",sz);
     void *v = memAlloc.malloc(sz);
     if(v == NULL) {
     	DBG("Could not alloc memory for CANDiagCalculator");

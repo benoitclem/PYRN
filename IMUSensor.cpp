@@ -9,8 +9,8 @@
 
 #define IMUVER1		0x01
 
-IMUSensor::IMUSensor(PinName sda, PinName scl, uint32_t idle, uint32_t stackSz, unsigned char* sp): 
-    MySensor(SENSOR_NAME_IMU, SENSOR_TYPE_IMU, idle, stackSz, sp), 
+IMUSensor::IMUSensor(PinName sda, PinName scl, uint32_t idle): 
+    MySensor(SENSOR_NAME_IMU, SENSOR_TYPE_IMU, idle, IMU_THREAD_STACK_SIZE, stack), 
     Accelerometer(sda,scl){
     InitResults(SENSOR_RESSZ_DEFAULT);
 }

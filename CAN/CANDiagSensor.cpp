@@ -104,8 +104,8 @@ void CANDiagSensor6A::DiagSequence(){
 		ERR("[%08x] Could not find CMD_NORM to play", calculator->GetCalcId());
 		return;
 	}
-	while(hdrCmd) {
-		DBG("[%08x] DiagSequence LOOP");
+	while(hdrCmd && running) {
+		DBG("[%08x] DiagSequence LOOP", calculator->GetCalcId());
 		// the CMD 
 		DiagTxCMD.lock();
 		ComHandler->ExecuteCommand(hdrCmd->cmd,hdrCmd->size,response,&len, 100);

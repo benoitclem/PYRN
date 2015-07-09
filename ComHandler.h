@@ -39,12 +39,13 @@ typedef struct _frameHdr {
 	frameHdr hdr;
 	Mutex BuffMtx;
 	char *TXBuff;
+	char data[XFER_BUFF_SZ];
 	//char XFerBuff[XFER_BUFF_SZ];
 	uint16_t currLen;
 	uint16_t maxLen;
    	HTTPClient http;
 public:
-	ComHandler(MyCallBack *callback, const char*idProduct, char *pTXBuff, uint16_t maxBuff);
+	ComHandler(MyCallBack *callback, const char*idProduct, char *pTXBuff = NULL, uint16_t maxBuff = 0);
 	virtual void Main(void);
 	virtual void DoServerRequest(void);
 	virtual bool AddResults(uint8_t SensorType, char *data, uint16_t len);

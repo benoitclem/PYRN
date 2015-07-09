@@ -31,22 +31,23 @@
 #include "NTPClient.h"
 #include "ComHandler.h"
 
-#define BLINKER
+//#define BLINKER
 //#define THREAD_MONITOR
 //#define APP_TEST
 //#define APP_SHARKAN
 #define CAN_SIMULATOR
 
-#define COMHANDLER_BS		8192
+bool printThread;
 
-char dataResult[1024] __attribute((section("AHBSRAM0")));
+char dataResult[1024] /* __attribute((section("AHBSRAM0")))*/;
 
 extern MyMemoryAllocator memAlloc;
 CANInterface *c;
 
 void threadMonitor(void const *args) {
     while (true) {
-        PrintActiveThreads();
+    	if(printThread)
+        	PrintActiveThreads();
         Thread::wait(500);
     }
 }
@@ -58,6 +59,8 @@ MainClass::MainClass(uint8_t nStaticts, uint8_t  nDynamics):
 }
 
 void MainClass::run(void) {
+
+	//char *dataResult = (char*) memAlloc.malloc(sizeof(char)*1024);
 
 #ifdef BLINKER
 	unsigned char *stack1 = (unsigned char*) memAlloc.malloc(BLINKER_THREAD_STACK_SIZE);
@@ -115,6 +118,9 @@ void MainClass::run(void) {
 
 #else
 	DBG("CAN APP");
+	
+	// Set a wdt with 60s timer
+	MyWatchdog wdt(60);
 
 	PyrnUSBModem modem;
 	
@@ -125,19 +131,16 @@ void MainClass::run(void) {
 		NVIC_SystemReset();
 	} else {
 	
+		wdt.Feed();
+	
 		// NTPClient
 		NTPClient ntp;
 		ntp.setTime("0.europe.pool.ntp.org");
-	
-		// Set a wdt with 60s timer
-		MyWatchdog wdt(60);
-		
-		// Allocate Space for data
-		char *pTXBuff = (char*) memAlloc.malloc(COMHANDLER_BS);
 
 		// 3G
-		ComHandler comm(this,"AAAAAAAAAAAAAAA",pTXBuff,COMHANDLER_BS);
-		//ComHandler comm(this,"012345678901234");
+		ComHandler comm(this,"AAAAAAAAAAAAAAA");
+
+		printThread = true;
 
 		// CAN 
 		CANInterface canItf;
@@ -145,8 +148,8 @@ void MainClass::run(void) {
 		//CANSniffer canSnif(&canItf);
 
 		// The static list of sensors (GPS/IMU/...)
-		IMUSensor imu(p28,p27);
-		staticSensors.AddSensor(&imu);
+		IMUSensor *imu = new IMUSensor(p28,p27);
+		staticSensors.AddSensor(imu);
 		//GPSSensor gps = GPSSensor gps(p13,p14,4,250);
 		//staticSensors.AddSensor(&gps);
 
@@ -219,14 +222,14 @@ void MainClass::run(void) {
 		*/
 
 		// Threads
-		imu.Start();
+		imu->Start();
 		//gps.Start();
 		comm.Start();
 		//DiagSensor6A->Start();
 		canItf.Start();
 
 
-		imu.Run();
+		imu->Run();
 		//gps.Run();
 		comm.Run();
 		//DiagSensor6A->Run();
@@ -298,6 +301,8 @@ void MainClass::run(void) {
 				}
 				dynSensorAccess.unlock();
 			}
+			void *p = NULL;
+			DBG(" MAIN sp = %p", &p);
 		    // Fill up the cbuff
 		    //cbuff[5] = 0xff & (loop>>8);
 		    //cbuff[6] = 0xff & loop;
@@ -315,7 +320,7 @@ void MainClass::run(void) {
 		
 		//Sim6A.Stop();
 
-		//imu.Stop();
+		//imu->Stop();
 		//gps.Stop();
 		//DiagSensor6A.Stop();   
 		canItf.Stop();
@@ -348,11 +353,11 @@ void MainClass::event(int ID, void *data) {
 			CANDiagCalculator *calc = s->GetDiagCalculator();
 			CANCommunicator6A *com = s->GetCommunicator();
 			DBG("Release Sensor");
-			memAlloc.free(s);
+			delete(s);
 			DBG("Release ComHandler");
-			memAlloc.free(com);
+			delete(com);
 			DBG("Release DiagCalculator");
-			memAlloc.free(calc);
+			delete(calc);
 			memAlloc.PrintResume();
 		}
 		DBG("Dynamic list is empty");
@@ -362,8 +367,8 @@ void MainClass::event(int ID, void *data) {
 		int inc = 0;
 		int dataSz = ID;
 		DBG_MEMDUMP("RX DATA", pData, dataSz);
-		while(1) {
 			CANDiagCalculator *DiagCalc = new CANDiagCalculator();
+		while(1) {
 			inc = DiagCalc->SetData((const char*)pData+offset);
 			DBG_MEMDUMP("CALC DATA", DiagCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
 			if(inc) {
@@ -388,7 +393,8 @@ void MainClass::event(int ID, void *data) {
 							DiagSensor6A->Run();
 							DBG("Adding Sensor %p to dynamic list",DiagSensor6A);
 							dynamicSensors.AddSensor(DiagSensor6A);
-						
+							void *p = NULL;
+							DBG(" EVENT MAIN sp = %p", &p);
 					} else {
 						DBG("Wrong BUS number (%d-%d-%d)... free memory and abort",ch,cl,bus);
 						delete(DiagCalc);
@@ -424,6 +430,8 @@ int main(void) {
     debug_init();
     debug_set_newline("\r\n");
     debug_set_speed(115200);
+    
+    printThread = false;
     
     // Main Function
     MainClass m(2,5);

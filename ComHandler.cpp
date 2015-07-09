@@ -2,20 +2,29 @@
 #include "ComHandler.h"
 #include "HTTPText.h"
 #include "HTTPRawData.h"
+#include "MyMemoryAllocator.h"
 
-#define __DEBUG__ 5
+#define __DEBUG__ 0
 #ifndef __MODULE__
 #define __MODULE__ "ComHandler.cpp"
 #endif
 #include "MyDebug.h"
 
+#define COM_HANDLER_BUFF_SIZE			4096
 #define COM_HANDLER_THREAD_STACK_SIZE   3*1024
 #define COM_HANDLER_MIN_PKTSZ			128
 
+extern MyMemoryAllocator memAlloc;
+
 ComHandler::ComHandler(MyCallBack *callback, const char* idProduct, char *pTXBuff, uint16_t maxBuff): MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE) {
 	cb = callback;
-	TXBuff = pTXBuff;
-	maxLen = maxBuff;
+	if(pTXBuff != NULL) {
+		TXBuff = pTXBuff;
+		maxLen = maxBuff;
+	} else {
+		TXBuff = (char*) memAlloc.malloc(COM_HANDLER_BUFF_SIZE);
+		maxLen = COM_HANDLER_BUFF_SIZE;
+	}
 	currLen = sizeof(frameHdr);
 	memcpy(hdr.imei,idProduct,15);
 	memset(hdr.idCfg,0xa5,40);
@@ -42,7 +51,6 @@ void ComHandler::Main() {
 }
 
 void ComHandler::DoServerRequest(void) {
-	char data[XFER_BUFF_SZ];
 	memset(data,0,XFER_BUFF_SZ);
 	// Protect access to TXBuff	
 	BuffMtx.lock();
