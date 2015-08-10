@@ -30,7 +30,7 @@ protected:
 public:
 	MyMemoryAllocator(char *m, uint16_t sz);
 	
-	void PrintResume(void);
+	void PrintResume(bool full = true);
 	void JoinNextBlock(MemBlock *pBlock);
 	void JoinPrevBlock(MemBlock *pBlock);
 	MemBlock *findBlock(char *p);

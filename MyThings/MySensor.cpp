@@ -2,7 +2,7 @@
 
 #include "MySensor.h"
 
-#define __DEBUG__ 5
+#define __DEBUG__ 0
 #ifndef __MODULE__
 #define __MODULE__ "MySensor.cpp"
 #endif
@@ -110,7 +110,6 @@ MySensor* MySensors::GetSensor(uint8_t index) {
 }
 
 MySensor* MySensors::PopLastSensor(void) {
-	DBG("NUM = %d",num);
 	if(num){
 		DBG("Poping last sensor from %d",num);
 		MySensor *s = *(sensors+(num-1));
