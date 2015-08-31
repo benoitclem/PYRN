@@ -1,5 +1,5 @@
 
-#define __DEBUG__ 0
+#define __DEBUG__ 5
 #ifndef __MODULE__
 #define __MODULE__ "IMUSensor.cpp"
 #endif

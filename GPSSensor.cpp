@@ -2,7 +2,7 @@
 
 #include "GPSSensor.h"
 
-#define __DEBUG__ 2
+#define __DEBUG__ 5
 #ifndef __MODULE__
 #define __MODULE__ "GPSSensor.cpp"
 #endif
@@ -136,8 +136,8 @@ void GPSSensor::Sample(void) {
             // but: That's annoying cause if so we could not printf them smoothly on console
             len = GetLine();
             
-            //DBG("GotLine(%d) %s",len,recvBuff);
-            // DBG_MEMDUMP("GPSData",(const char*)recvBuff,len);
+            DBG("GotLine(%d) %s",len,recvBuff);
+            DBG_MEMDUMP("GPSData",(const char*)recvBuff,len);
             
             for(unsigned int i = 0; i < len; i++) {
                 // Insert all data to gpsParser

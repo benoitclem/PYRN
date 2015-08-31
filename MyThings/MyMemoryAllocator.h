@@ -13,6 +13,7 @@ typedef enum {
 	FREE,
 } MemBlockStatus;
 
+/* PACKED? */
 typedef struct _MemBlock {
 	MemBlock *prev;
 	uint16_t sz;

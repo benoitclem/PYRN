@@ -35,7 +35,8 @@
 //#define THREAD_MONITOR
 //#define APP_TEST
 //#define APP_SHARKAN
-#define CAN_SIMULATOR
+#define APP_CANV10
+//#define CAN_SIMULATOR
 
 bool printThread;
 
@@ -115,6 +116,23 @@ void MainClass::run(void) {
 	}
 
   canItf.Stop();
+#elif defined APP_CANV10
+	DBG("APP_CANV10");
+	
+	GPSSensor *gps = new GPSSensor(p13,p14,4,250);
+	IMUSensor *imu = new IMUSensor(p28,p27);
+	
+	gps->Start();
+	imu->Start();
+	gps->Run();
+	imu->Run();
+	
+	while(1){
+		Thread::wait(1000);	
+	}
+	
+	gps->Stop();
+	imu->Stop();
 
 #else
 	DBG("CAN APP");
