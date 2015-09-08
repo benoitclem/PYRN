@@ -62,7 +62,7 @@ class SerialReader(Thread):
 			#print("sr: loop")
 			v = self.ser.readline()
 			#print("sr: " +v)
-			print(v[:-1])
+			#print(v[:-1])
 			self.q.put(v) 
 			time.sleep(0.01)
 			

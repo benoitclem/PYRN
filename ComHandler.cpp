@@ -3,20 +3,47 @@
 #include "HTTPText.h"
 #include "HTTPRawData.h"
 #include "MyMemoryAllocator.h"
+#include "Storage.h"
 
-#define __DEBUG__ 0
+#define __DEBUG__ 5
 #ifndef __MODULE__
 #define __MODULE__ "ComHandler.cpp"
 #endif
 #include "MyDebug.h"
 
-#define COM_HANDLER_BUFF_SIZE			4096
-#define COM_HANDLER_THREAD_STACK_SIZE   3*1024
+#define COM_HANDLER_BUFF_SIZE			2096
+#define COM_HANDLER_THREAD_STACK_SIZE   4*1024
 #define COM_HANDLER_MIN_PKTSZ			128
 
+#define DATA_STORAGE_DATASZ_IDX		0			
+
+extern Storage 			*storage;
 extern MyMemoryAllocator memAlloc;
 
-ComHandler::ComHandler(MyCallBack *callback, const char* idProduct, char *pTXBuff, uint16_t maxBuff): MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE) {
+//========= Helpers to manipulate the dataStorage =====
+/*
+int ComHandler::ReadDataSize(void) {
+	int dataSz;
+	dataStorage.Read((char*)&dataSz,DATA_STORAGE_DATASZ_IDX,sizeof(int));
+	return dataSz;
+}
+
+int ComHandler::WriteDataSize(int sz) {
+	dataStorage.Write((char*)&sz,DATA_STORAGE_DATASZ_IDX,sizeof(int));
+}
+
+int ComHandler::AddDataSize(int sz) {
+	int dataSz;
+	dataStorage.Read((char*)&dataSz,DATA_STORAGE_DATASZ_IDX,sizeof(int));
+	dataSz += sz;
+	dataStorage.Write((char*)&dataSz,DATA_STORAGE_DATASZ_IDX,sizeof(int));
+	return dataSz;
+}
+*/
+//=====================================================
+
+
+ComHandler::ComHandler(MyCallBack *callback, const char* idProduct, ComHandler::transferType ltt, char *pTXBuff, uint16_t maxBuff): MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE), dataStorage(p5,p6,p7,p8,100,10000) {
 	cb = callback;
 	if(pTXBuff != NULL) {
 		TXBuff = pTXBuff;
@@ -25,37 +52,91 @@ ComHandler::ComHandler(MyCallBack *callback, const char* idProduct, char *pTXBuf
 		TXBuff = (char*) memAlloc.malloc(COM_HANDLER_BUFF_SIZE);
 		maxLen = COM_HANDLER_BUFF_SIZE;
 	}
-	currLen = sizeof(frameHdr);
+	tt = ltt;
+
 	memcpy(hdr.imei,idProduct,15);
 	memset(hdr.idCfg,0xa5,40);
+
 	first = true;
 }
 
-void ComHandler::Main() {
-	int loop = 0;
+void ComHandler::SetTransferType(ComHandler::transferType ltt) {
+	tt = ltt;
+}
 
+bool ComHandler::NeedTransfer(void) {
+	uint16_t limit = 0;
+	switch(tt) {
+		case TT_ASAP:
+			return true;
+		case TT_HALF:
+			limit = maxLen/2;
+			break;
+		case TT_FULL:
+			limit = maxLen;
+			break;
+		case TT_TWICE:
+			limit = maxLen*2;
+	}
+	int dataSz;
+	dataStorage.Read((char*)&dataSz,DATA_STORAGE_DATASZ_IDX,sizeof(int));
+	DBG("NeedTransfer dataSz = %d",dataSz);
+	return dataSz>=limit;
+}
+
+void ComHandler::Main(void) {
 	DBG("Running ComHandler");
     while(running) {
-        DBG("ComHandler Loop");
-        Thread::wait(1000);
-		if((loop%10) == 0) {
-			if(true){			
-			//if(currLen > COM_HANDLER_MIN_PKTSZ) {
+    	DBG("ComHandler Loop");
+      Thread::wait(1000);
+			//if(true){		
+			if(NeedTransfer()) { 
 				DoServerRequest();
 			} else {
-				DBG("Not Enough (%d) data to send results",currLen);			
+				DBG("Not Enough data to send results");			
 			}
-        }
-        loop++;
     }
 }
 
 void ComHandler::DoServerRequest(void) {
+	char hdrTmp[3];
+	
 	memset(data,0,XFER_BUFF_SZ);
 	// Protect access to TXBuff	
 	BuffMtx.lock();
+	
+	currLen = 0;
+	
+	// Create a Frame
 	FillHeader();
-    DBG("Reporting Results (%d) ...\n",currLen);
+	currLen += sizeof(frameHdr);
+	
+	// Fill up Frame with data from storage
+	uint16_t s = 0;
+	uint16_t r = 0;
+	DBG("Now build a frame from storage");
+	
+	/*
+	while(1) {
+		// Read Impact Header to
+		storage->ReadData("impacts", (uint8_t*)hdrTmp, 3, 0,false);
+		DBG_MEMDUMP("HdrTmp", hdrTmp, 3);
+		s = *((uint16_t*)(hdrTmp+1));
+		DBG("Try to add %d char to %d/%d buff", s, currLen, maxLen);
+		if((currLen+s)<maxLen) {
+			r = storage->ReadData("impacts", (uint8_t*)(TXBuff+currLen), s+3, 0, true);
+			if(r == 0) {
+				DBG("Storage is now empty ... close frame");
+				break;
+			}
+		} else {
+			DBG("Reached Frame max size ... close frame");
+			break;
+		}
+	}
+	*/
+	
+  DBG("Reporting Results (%d) ...\n",currLen);
 	DBG_MEMDUMP("TXData",(char*)TXBuff, currLen);
 	// Create the exchange buffers (becarefull with thread stack)
 	// /!\ WORKAROUND +1 (http client miss 1byte)
@@ -69,6 +150,7 @@ void ComHandler::DoServerRequest(void) {
 		// TODO: Do a validation of data before stopping everything
 		if((cb != NULL) && (sz != 0) ) {
     		cb->event(sz,(void*)data);
+    		DBG("Overwrite the current calcs stored in SD");
     	} else{
     		DBG("Callback not found or size is null? (%d)",sz);
     	}
@@ -77,27 +159,18 @@ void ComHandler::DoServerRequest(void) {
     } else {
 		DBG("Error - ret = %d - HTTP return code = %d\n", ret, http.getHTTPResponseCode());
     }
-	currLen = sizeof(frameHdr);
 	BuffMtx.unlock();
 }
 
 bool ComHandler::AddResults(uint8_t SensorType, char *data, uint16_t len) {
-	// TODO: Add timeout
-	bool ret = false;
-	if( (currLen + len + 2) < maxLen) {
-		BuffMtx.lock();
-		TXBuff[currLen++] = SensorType;
-		TXBuff[currLen++] = (char) (len) & 0xff;
-		TXBuff[currLen++] = (char) (len>>8) & 0xff;
-		memcpy(TXBuff+currLen,data,len);
-		currLen+=len;
-		ret = true;
-		DBG("ADD[%d] %d data now currLen = %d/%d",SensorType, len+3, currLen, maxLen);
-		BuffMtx.unlock();
-	} else {
-		ERR("Could not fit Sensor data into output Buffer");	
-	}
-	return ret;
+	BuffMtx.lock();
+	TXBuff[0] = SensorType;
+	TXBuff[1] = (char) (len) & 0xff;
+	TXBuff[2] = (char) (len>>8) & 0xff;
+	memcpy(TXBuff+3,data,len);
+	int r = storage->WriteData("impacts",(uint8_t*)TXBuff,len+3,false);
+	BuffMtx.unlock();
+	return r==(len+3);
 }
 
 void ComHandler::FillHeader() {

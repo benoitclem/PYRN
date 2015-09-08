@@ -25,22 +25,30 @@ MyMemoryAllocator::MyMemoryAllocator(char *m, uint16_t sz) {
 	head->next = NULL;
 }
 
-void MyMemoryAllocator::PrintResume(void) {
+void MyMemoryAllocator::PrintResume(bool full) {
 	MemBlock *pBlock = head;	
 	uint16_t i = 0;
 	uint16_t sum = 0;
-	DBG("START %p[%d]",pBlock,memorySize);
-	while(pBlock){
-		sum += pBlock->sz;
-		DBG("%d - %p - %d - %p - %p - %s",i++,pBlock, pBlock->sz, pBlock->prev, pBlock->next, (pBlock->status==FREE)?"FREE":"INUSE"); 
-		pBlock = pBlock->next;
-	}
-	if(sum>memorySize) {
-		DBG("MemoryAllocator fault %d>%d",sum,memorySize);
-		//wait(1000);
-		//NVIC_SystemReset();
-	}
-	DBG("END");
+	if(full) {
+		DBG("START %p[%d]",pBlock,memorySize);
+		while(pBlock) {
+			sum += pBlock->sz;
+			DBG("%d - %p - %d - %p - %p - %s",i++,pBlock, pBlock->sz, pBlock->prev, pBlock->next, (pBlock->status==FREE)?"FREE":"INUSE"); 
+			pBlock = pBlock->next;
+		}
+		if(sum>memorySize) {
+			DBG("MemoryAllocator fault %d>%d __________STOP__________",sum,memorySize);
+			wait(1000);
+			NVIC_SystemReset();
+		}
+		DBG("END");
+	} else {
+		while(pBlock) {
+			sum += pBlock->sz;
+			pBlock = pBlock->next;
+		}
+		DBG("MemoryAllocator status [%05d/%05d]",sum,memorySize);
+	}	
 }
 
 // When getting out of this function pblock is still valid

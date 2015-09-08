@@ -13,6 +13,8 @@ protected:
 	MySensors dynamicSensors;
 public:
 	MainClass(uint8_t nStaticts, uint8_t  nDynamics);
+	void CheckSDFileSystem(void);
+	void LoadCalculators(void);
 	void run(void);
 	virtual void event(int ID, void *data);
 };

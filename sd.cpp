@@ -9,6 +9,8 @@
  
 //#define DEBUG
 #define SD_COMMAND_TIMEOUT 5000
+char bufftmp[512]; 
+char cbbufftmp[512];
  
 sdCard::sdCard(PinName mosi, PinName miso, PinName sclk, PinName cs) :
   _spi(mosi, miso, sclk), _cs(cs) {
@@ -113,25 +115,33 @@ int sdCard::disk_initialize() {
 }
  
 int sdCard::disk_write(const char *buffer, int block_number) {
-    // set write address for single block (CMD24)
-    if(_cmd(24, block_number * cdv) != 0) {
-        return 1;
-    }
+	if(access.trylock()){   
+	    // set write address for single block (CMD24)
+	    if(_cmd(24, block_number * cdv) != 0) {
+	        return 1;
+   		}
  
-    // send the data block
-    _write(buffer, 512);    
-    return 0;    
+    	// send the data block
+    	_write(buffer, 512);
+    	access.unlock();
+    	return 0;
+    }
+    return 1;
 }
  
-int sdCard::disk_read(char *buffer, int block_number) {        
-    // set read address for single block (CMD17)
-    if(_cmd(17, block_number * cdv) != 0) {
-        return 1;
-    }
+int sdCard::disk_read(char *buffer, int block_number) {   
+	if(access.trylock()){     
+	    // set read address for single block (CMD17)
+	    if(_cmd(17, block_number * cdv) != 0) {
+	        return 1;
+   		 }
     
-    // receive the data
-    _read(buffer, 512);
-    return 0;
+    	// receive the data
+    	_read(buffer, 512);
+    	access.unlock();
+    	return 0;
+    } 
+    return 1;
 }
  
 int sdCard::disk_sectors() { return _sectors; }
@@ -370,23 +380,157 @@ int sdCard::_sd_sectors() {
  return blocks;
 }
 
-
-sdStorage::sdStorage(PinName mosi, PinName miso, PinName sclk, PinName cs, int nSects):
-	sd(mosi, miso, sclk, cs) {
-	sd.disk_initialize();
-	int maxSectors = sd.disk_sectors();
+sdStorage::sdStorage(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects) {
+	if(sd == NULL) {
+		DBG("First sdStorage instanciation");
+		sd = new sdCard(mosi, miso, sclk, cs);
+		sd->disk_initialize();
+	}
+	int maxSectors = sd->disk_sectors();
 	if(nSects < maxSectors) {
 		DBG("OK, create the circular buffer");
+		iSectorStart = iSectStart;
 		nSectors = nSects;
-		usedSectors = 0;
-		rSectorIndex = 0;
-		wSectorIndex = 0;
+		//usedSectors = 0;
+		//rSectorIndex = 0;
+		//wSectorIndex = 0;
 	} else {
 		ERR("The number of sector you asked is bigger that the sd card sector number");
 	}
 }
 
-int sdStorage::Read(char *buffer, int length) {
+int sdStorage::Read(char *buffer, int index, int length, int offset) {
+	int err = 1;
+	int nRead = 0;
+	int currSectorIndex = iSectorStart+index;
+	// Coarse Read size
+	if((((nSectors-index)*512)-offset)<length) {
+		WARN("SD-Read: Try to read %d but max is %d",length,((nSectors-index)*512)-offset);
+		length = (((nSectors-index)*512)-offset);
+	}
+	DBG("SD-Read:before lock");
+	int i = 0;
+	int nCpy = 0;
+	while(i<length) {
+		if((offset!=0) && (i == 0)){
+			nCpy = 512 - offset;
+		} else {
+			nCpy = ((length-i)>512)?512:(length-i);
+		}
+		err = sd->disk_read(bufftmp,currSectorIndex);
+		if(err) {
+			ERR("SD-Read: Something goes wrong");
+		} else {
+			DBG("SD-Read: GOOD %d/%d %d",i+nCpy,length,currSectorIndex);
+		}
+		memcpy(buffer+i,bufftmp+offset,nCpy);
+		if(offset)
+			offset = 0;
+		i+=nCpy;
+		currSectorIndex++;
+	}
+	return err;
+}
+
+int sdStorage::Write(char *buffer, int index, int length, int offset) {
+	int err = 1;
+	int nWrite = 0;
+	int currSectorIndex = index;
+	// Coarse Write size t
+	if((((nSectors-index)*512)-offset)<length) {
+		WARN("SD-Write: Try to read %d but max is %d",length,((nSectors-index)*512));
+		length = ((nSectors-index)*512);
+	}
+	DBG("SD-Write: before lock");
+	int i = 0;
+	int nCpy = 0;
+	while(i<length) {
+		if((offset!=0) && (i == 0)){
+			DBG("SD-Write: offset %d",offset);
+			// read the part that exists before offset
+			sd->disk_read(bufftmp,currSectorIndex);
+			nCpy = (length>(512-offset))?(512-offset):length;
+		} else {
+			memset(bufftmp,0,512);
+			nCpy = ((length-i)>512)?512:(length-i);
+		}
+		memcpy(bufftmp+offset,buffer+i,nCpy);
+		if(offset)
+			offset = 0;
+		err = sd->disk_write(bufftmp,currSectorIndex);
+		if(err) {
+			ERR("SD-Write: Something goes wrong");
+			break;
+		} else {
+			DBG("SD-Write: GOOD %d/%d %d",i+nCpy,length,currSectorIndex);
+		}
+		i+=nCpy;
+		currSectorIndex++;
+	}
+	return err;
+}
+
+int sdStorage::Clear(int index) {
+	memset(bufftmp,0,512);
+	int err = sd->disk_write(bufftmp,index);
+	if(err) {
+		ERR("SD-Clear: Something goes wrong");
+	} else {
+		DBG("SD-Clear: GOOD %d",index);
+	}
+	return err;
+}
+
+/*
+sdCircBuff::sdCircBuff(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects): 
+	sdStorage(mosi, miso, sclk, cs, iSectStart, nSects) {
+	// Trash first sector
+	Clear(0);
+	// Initiate the pointers
+	pointers.w = 0;
+	pointers.sw = 0;
+	pointers.r = 0;
+	pointers.sr = 0;
+	pointers.sz = 0;
+}
+	
+// /!\ This is not thread safe /!\ .
+sdCircBuff::Put(char *buffer, int index, int length){
+	int offset = 0;
+	int nPut = 0;
+	if(pointers.sw != 0) {
+		// Need to read the data in sector
+		sd.read(cbbufftmp,pointers.w,pointers.sw+1);
+		offset = pointers.sw;
+	}
+	// Insert the size
+	if((512-pointers.sw) < sizeof(int)) {
+		// Size gonna be splitted at one sector boundary
+		cbbufftmp
+		memcpy(cbbufftmp+pointer.sw,(char*)&length,((512-pointers.sw) < sizeof(int))?512-pointers.sw:4);
+		sd.write(((char*)&length)+
+	} else {
+	}
+	memcpy(cbbufftmp+pointers.sw,(char*)&length,sizeof(int));
+	// put the size of block that will follow
+	sd.write((char*)&length,pointers.w,sizeof(int));
+	while(nPut<length){
+
+}
+*/
+
+/*
+int sdCircBuff::ComputeChecksum(int p1, int p2, int p3, int p4) {
+	return p1+p2+p3+p4;
+}
+
+char sdCircBuff::CheckChecksum(int p1, int p2, int p3, int p4, char cs) {
+	return cs == ComputeCheckSum(p1,p2,p3,p4);
+}
+*/
+
+/* En partique ca ne peu pas marcher
+int sdStorage::BCRead(char *buffer, int length) {
 	int err = 1;
 	DBG("SD-Read: length = %d",length);
 	if(rSectorIndex != wSectorIndex) {
@@ -394,7 +538,7 @@ int sdStorage::Read(char *buffer, int length) {
 			if(usedSectors) {
 				for(int i = 0; i<length; i+=512) {
 					DBG("SD-Read-B: rSector = %d | wSector = %d | used = %d",rSectorIndex,wSectorIndex, usedSectors);
-					err = sd.disk_read(buffer+i,rSectorIndex);
+					err = sd->disk_read(buffer+i,rSectorIndex);
 					if(err) {
 						ERR("SD-Write: Something goes wrong");
 					}
@@ -411,7 +555,7 @@ int sdStorage::Read(char *buffer, int length) {
 	return err;
 }
 		
-int sdStorage::Write(char *buffer, int length) {
+int sdStorage::BCWrite(char *buffer, int length) {
 	int err = 1;
 	int wSectTempIndex = wSectorIndex;
 	int usedTempSectors = usedSectors;
@@ -421,7 +565,7 @@ int sdStorage::Write(char *buffer, int length) {
 		if(SectorAccess.trylock()){
 			for(int i = 0; i< length; i+=512) {
 				DBG("SD-Write-B: rSector = %d | wSector = %d | used = %d",rSectorIndex,wSectTempIndex, usedTempSectors);
-				err = sd.disk_write(buffer+i,wSectTempIndex);
+				err = sd->disk_write(buffer+i,wSectTempIndex);
 				if(err) {
 					ERR("SD-Write: Something goes wrong");
 					break;
@@ -439,9 +583,7 @@ int sdStorage::Write(char *buffer, int length) {
 			SectorAccess.unlock();
 		}
 	}
-
 	return err;
 }
 		
-		
-		
+*/		

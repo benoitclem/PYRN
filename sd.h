@@ -14,6 +14,7 @@ public:
     virtual int disk_sectors();
  
 protected:
+	Mutex access;
     int _cmd(int cmd, int arg);
     int _cmdx(int cmd, int arg);
     int _cmd8();
@@ -32,19 +33,35 @@ protected:
     int cdv;    
 };
 
+static sdCard *sd = NULL;
+
 class sdStorage{
 	public:
-		sdStorage(PinName mosi, PinName miso, PinName sclk, PinName cs, int nSects);
-		int Read(char *buffer, int length);
-		int Write(char *buffer, int length);
-				
+		sdStorage(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects);
+		int Read(char *buffer, int index, int length, int offset = 0);
+		int Write(char *buffer, int index, int length, int offset = 0);
+		int Clear(int index);
 	protected:
-		Mutex SectorAccess;
-		sdCard 	sd;
+		int iSectorStart;
 		int	nSectors;
-		int usedSectors;
-		int	rSectorIndex;
-		int	wSectorIndex;
 };
 
+/*
+class sdCircBuff: public sdStorage{
+	public:
+		sdCircBuff(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects);
+		int Put(char *buffer, int index, int length);
+		int Get(char *buffer, int index, int length);
+		//int ComputeChecksum(int p1, int p2, int p3, int p4);
+		//bool CheckChecksum(int p1, int p2, int p3, int p4, int cs);
+	protected:
+		struct {
+			int w;
+			int sw;
+			int r;
+			int sr;
+			int sz;
+		} __attribute__((packed)) pointers;
+};
+*/
 #endif

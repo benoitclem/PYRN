@@ -7,6 +7,8 @@
 #include "HTTPClient.h"
 #include "MyCallBack.h"
 
+#include "sd.h"
+
 #define XFER_BUFF_SZ 512
 
 class ResultHandler {
@@ -27,25 +29,42 @@ typedef struct _SizedData {
 } SizedData;
 
 class ComHandler: public MyThread {
+public:
+	typedef enum _transferType {
+		TT_ASAP,
+		TT_HALF,
+		TT_FULL,
+		TT_TWICE,
+	} transferType;
 protected:
 typedef struct _frameHdr {
 	char imei[15];
 	char idCfg[40];
 	uint32_t time;
 	char newSess;
-}__attribute__((packed)) frameHdr;
+	//char cframe; // CurrentFrame
+	//char tframe; // TotalFrame
+	}__attribute__((packed)) frameHdr;
+// This enum define how 
+	transferType tt;
 	bool first;
 	MyCallBack *cb;
 	frameHdr hdr;
 	Mutex BuffMtx;
 	char *TXBuff;
 	char data[XFER_BUFF_SZ];
+	char storageName[32];
 	//char XFerBuff[XFER_BUFF_SZ];
 	uint16_t currLen;
 	uint16_t maxLen;
-   	HTTPClient http;
+	HTTPClient http;
+	
+	sdStorage dataStorage;
 public:
-	ComHandler(MyCallBack *callback, const char*idProduct, char *pTXBuff = NULL, uint16_t maxBuff = 0);
+	ComHandler(MyCallBack *callback, const char*idProduct, ComHandler::transferType ltt = TT_HALF, char *pTXBuff = NULL, uint16_t maxBuff = 0);
+	
+	virtual void SetTransferType(ComHandler::transferType ltt);
+	virtual bool NeedTransfer(void);
 	virtual void Main(void);
 	virtual void DoServerRequest(void);
 	virtual bool AddResults(uint8_t SensorType, char *data, uint16_t len);

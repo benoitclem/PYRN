@@ -31,18 +31,21 @@
 #include "NTPClient.h"
 #include "ComHandler.h"
 
-//#define BLINKER
-//#define THREAD_MONITOR
-//#define APP_TEST
-//#define APP_SHARKAN
-#define APP_CANV10
-//#define CAN_SIMULATOR
+#include "sd.h"
 
+#define BLINKER
+#define THREAD_MONITOR
+//#define APP_TEST
+//#define APP_CANV10
+//#define CAN_SIMULATOR
+#define APP_SHARKAN
+#define APP_SDSPI
+//#define APP_CANONAIR
 bool printThread;
 
 char dataResult[1024] /* __attribute((section("AHBSRAM0")))*/;
-
 extern MyMemoryAllocator memAlloc;
+
 CANInterface *c;
 
 void threadMonitor(void const *args) {
@@ -59,6 +62,18 @@ MainClass::MainClass(uint8_t nStaticts, uint8_t  nDynamics):
 
 }
 
+void MainClass::LoadCalculators(void) {
+/*	int dataSz = 0;
+	char *pData = dataResult;
+	calcStorage.Read((char*)&dataSz,0,sizeof(int));
+	DBG("Load new calculator Size = %d Data",dataSz)
+	if((dataSz!=0)&& (dataSz<=1024)) {
+		calcStorage.Read(pData,1,dataSz);
+		event(dataSz,pData);
+	}*/
+}
+
+
 void MainClass::run(void) {
 
 	//char *dataResult = (char*) memAlloc.malloc(sizeof(char)*1024);
@@ -73,6 +88,9 @@ void MainClass::run(void) {
 
 	MyBlinker br = MyBlinker(&led_red,1000,1.0,0.0,BLINKER_THREAD_STACK_SIZE,stack1);
 	MyBlinker bg = MyBlinker(&led_green,2000,1.0,0.0,BLINKER_THREAD_STACK_SIZE,stack2);
+	
+	sdStorage calcStorage(p5,p6,p7,p8,0,100);	// use for store calcultors & for spi test
+
 #endif
 
 #ifdef THREAD_MONITOR
@@ -101,21 +119,53 @@ void MainClass::run(void) {
 		Thread::wait(1000);
 	}
 	
+#elif defined APP_SDSPI
+	DBG("SPI SD APP");
+
+	Timer t;
+	
+	memset(dataResult,0x00,1024);
+	calcStorage.Write(dataResult,0,1024);
+	
+	memset(dataResult,0x01,1024);
+	calcStorage.Write(dataResult,0,128,16);
+	
+	memset(dataResult,0xA5,640);
+	calcStorage.Write(dataResult,0,640,256);
+	memset(dataResult,0xA0,1024);
+	calcStorage.Read(dataResult,0,1024);
+	DBG_MEMDUMP("SD DATA 1:", dataResult, 1024);
+	
+	calcStorage.Read(dataResult,0,1024,256);
+	DBG_MEMDUMP("SD DATA 2:", dataResult, 1024);
+	
+	memset(dataResult,0xA0,1024);
+	calcStorage.Write(dataResult,0,1024);
+	memset(dataResult,0xA5,1024);
+	calcStorage.Read(dataResult,0,640);
+	DBG_MEMDUMP("SD DATA:", dataResult, 1024);
+	
+	while(1){
+		Thread::wait(1000);	
+	}
+	
 #elif defined APP_SHARKAN
 	DBG("SHARKAN APP");
+	
+	//printThread = true;
 
 	CANInterface canItf;
 	c = &canItf;
-  CANSniffer canSnif(&canItf);
+	CANSniffer canSnif(&canItf);
 
-  canItf.Start();
-  canItf.Run();
+	canItf.Start();
+	canItf.Run();
 
 	while(1){
 		Thread::wait(1000);	
 	}
+	canItf.Stop();
 
-  canItf.Stop();
 #elif defined APP_CANV10
 	DBG("APP_CANV10");
 	
@@ -134,9 +184,10 @@ void MainClass::run(void) {
 	gps->Stop();
 	imu->Stop();
 
-#else
+#elif defined APP_CANONAIR
 	DBG("CAN APP");
-	
+
+	printThread = true;
 	// Set a wdt with 60s timer
 	MyWatchdog wdt(60);
 
@@ -155,10 +206,10 @@ void MainClass::run(void) {
 		NTPClient ntp;
 		ntp.setTime("0.europe.pool.ntp.org");
 
-		// 3G
-		ComHandler comm(this,"AAAAAAAAAAAAAAA");
+		// 3G (configure the system to return ASAP for the first connection)
+		ComHandler comm(this,"AAAAAAAAAAAAAAA",ComHandler::TT_ASAP);
 
-		printThread = true;
+		//ComHandler comm(this,"AAAAAAAAAAAAAAA");
 
 		// CAN 
 		CANInterface canItf;
@@ -184,60 +235,15 @@ void MainClass::run(void) {
 		SimuHdr.pinl = 14;
 		SimuHdr.cmdLen = 0;
 		char *SimuData = (char*) &SimuHdr;
-		/*
-		char DiagCmd[38] = {CMD_ACK,		0,3,0x30,0x00,0x0A,
-							CMD_KEEP_ALIVE,	0,2,0x01,0x3e,   
-							CMD_NORM,		0,3,0x02,0x10,0xC0,
-							CMD_NORM,		0,3,0x02,0x21,0x80,
-							CMD_NORM,		0,3,0x02,0x21,0xC0,
-							CMD_DIAG_START, 0,4,0x03,0x03,0x02,0x01,
-							CMD_END,		0};
-		DBG("SZ = %d",sizeof(DiagCmd));
-		CANDiagCalculatorHeader DiagHdr;
-		DiagHdr.hdrVer = 1;
-		DiagHdr.diagCode = 0x6A;
-		DiagHdr.speed = 500;
-		DiagHdr.addrSrc = 0x74C;
-		DiagHdr.addrDst = 0x64C;
-		DiagHdr.pinh = 3;
-		DiagHdr.pinl = 8;
-		DiagHdr.cmdLen = sizeof(DiagCmd);
-		char *DiagData = (char*) malloc (sizeof(CANDiagCalculatorHeader)+sizeof(DiagCmd));
-		memcpy(DiagData,&DiagHdr,sizeof(CANDiagCalculatorHeader));
-		memcpy(DiagData+sizeof(CANDiagCalculatorHeader),DiagCmd,sizeof(DiagCmd));
-		
-		int totalSz = sizeof(CANDiagCalculatorHeader)+ sizeof(DiagCmd);*/
-		
-		//this->event(totalSz,DiagData);
 				
 		// Simu Calculator
 		CANDiagCalculator *simuCalc = new CANDiagCalculator((const char*)SimuData);
-		//delete(simuCalc);
-		//CANDiagCalculator simuCalc((const char*)SimuData);
 		
 		// Comm handlers
 		uint8_t bus = canItf.BusFromPins(simuCalc->GetPinH(),simuCalc->GetPinL());
 		CANCommunicatorSim6A *Sim6A = new CANCommunicatorSim6A(&canItf,bus,simuCalc);
 		Sim6A->Start();
-		//CANCommunicatorSim6A Sim6A(&canItf,2,simuCalc);
 #endif
-		/*
-		// Diag
-		CANDiagCalculator *DiagCalc = new CANDiagCalculator((const char*)DiagData);
-		DBG("DiagCalc %p",DiagCalc);
-		//delete(simuCalc);
-		//CANDiagCalculator DiagCalc((const char*)DiagData);
-	
-		CANCommunicator6A *Diag6A = new CANCommunicator6A(&canItf,2,DiagCalc);
-		DBG("Diag6A %p",Diag6A);
-		//CANCommunicator6A Diag6A(&canItf,1,&);
-
-		// Diagnoses
-		CANDiagSensor6A *DiagSensor6A = new CANDiagSensor6A(DiagCalc,Diag6A);
-		DBG("DiagSensor6A %p",DiagSensor6A);
-		dynamicSensors.AddSensor(DiagSensor6A);
-		
-		*/
 
 		// Threads
 		imu->Start();
@@ -249,41 +255,16 @@ void MainClass::run(void) {
 
 		imu->Run();
 		//gps.Run();
-		comm.Run();
+		//comm.Run();
 		//DiagSensor6A->Run();
 		canItf.Run();
 		
 		Thread::wait(2000);
 
-		// ecrire dans 5 et 6
-		//char cbuff[8] = {'C','A','N','1','[',' ',' ',']'};
-		//uint16_t loop = 0;
 		uint16_t len = 0;
 		
-		/*while(1){
-			wdt.Feed();
-		
-			DBG("MainThread");
-		    // Fill up the cbuff
-		    cbuff[5] = 0xff & (loop>>8);
-		    cbuff[6] = 0xff & loop;
-		    //PrintActiveThreads();
-		    Thread::wait(1000);
-		    time_t seconds = time(NULL);
-			
-		    //if((loop % 20) == 0) {
-		    //	gps.Capture(dataResult,&len);
-		    //	DBG("GPS[%04d] Got %03d chars",seconds,len);
-			//	comm.AddResults(0xca,cbuff,8);
-		    //}
-		    //if((loop % 30) == 0) {
-		    //	imu.Capture(dataResult,&len);
-		    //	DBG("IMU[%04d] Got %03d chars",seconds,len);
-		    //}
-		    canItf.Send(1,0x666,cbuff,8);
-			comm.AddResults(0xca,cbuff,8);
-		    loop++;
-		}*/
+		//LoadCalculators();
+				
 		while(1){
 			MySensor *s;
 			// Request StaticSensors
@@ -298,7 +279,12 @@ void MainClass::run(void) {
 						uint8_t st = s->GetSensorType();
 						time_t seconds = time(NULL);
 						DBG("(%04d) %s(%d) Got %03d chars",seconds,s->GetSensorName(),st,len);
-						comm.AddResults(st,dataResult,len);
+						if(comm.AddResults(st,dataResult,len)){
+							DBG("Result have been writen");
+
+ 						} else {
+							DBG("Result could not be writen");
+						}
 					}
 				}
 			}
@@ -313,27 +299,17 @@ void MainClass::run(void) {
 							uint8_t st = s->GetSensorType();
 							time_t seconds = time(NULL);
 							DBG("(%04d) %s(%d) Got %03d chars",seconds,s->GetSensorName(),st,len);
-							comm.AddResults(st,dataResult,len);
+							if(comm.AddResults(st,dataResult,len)){
+								DBG("Result have been writen");
+							} else {
+								DBG("Result could not be writen");
+							}
 						}
 					}
 				}
 				dynSensorAccess.unlock();
 			}
-			void *p = NULL;
-			DBG(" MAIN sp = %p", &p);
-		    // Fill up the cbuff
-		    //cbuff[5] = 0xff & (loop>>8);
-		    //cbuff[6] = 0xff & loop;
-		    //PrintActiveThreads();
 		    Thread::wait(1000);
-		    //time_t seconds = time(NULL);
-		    //canItf.Send(1,0x666,cbuff,8);
-			//comm.AddResults(0xca,cbuff,8);
-			//loop++;
-			/*if(loop%15 == 0) {
-				this->event(totalSz,DiagData);
-				DBG("OOOOOOOOOOOOOUUUUUUUUUUUUUUUTTTTTTTTTTTTTTT");
-			}*/
 		}
 		
 		//Sim6A.Stop();
@@ -354,6 +330,7 @@ void MainClass::run(void) {
 
 void MainClass::event(int ID, void *data) {
 	DBG("event received");
+#if defined APP_CANONAIR
 	osStatus s = dynSensorAccess.lock(4000);
 	if(s == osOK){
 		// Delete the sensors for dybamic pool
@@ -376,16 +353,19 @@ void MainClass::event(int ID, void *data) {
 			delete(com);
 			DBG("Release DiagCalculator");
 			delete(calc);
-			memAlloc.PrintResume();
-		}
+			memAlloc.PrintResume(false);
 		DBG("Dynamic list is empty");
+		}
 		uint8_t nCalc = 0;
 		char *pData = (char*) data;
 		int offset = 0;
 		int inc = 0;
 		int dataSz = ID;
 		DBG_MEMDUMP("RX DATA", pData, dataSz);
-			CANDiagCalculator *DiagCalc = new CANDiagCalculator();
+		DBG("Store new calculator Size() Data",)
+		calcStorage.Write((char*)&dataSz,0,sizeof(int));
+		calcStorage.Write(pData,1,dataSz);
+		CANDiagCalculator *DiagCalc = new CANDiagCalculator();
 		while(1) {
 			inc = DiagCalc->SetData((const char*)pData+offset);
 			DBG_MEMDUMP("CALC DATA", DiagCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
@@ -411,8 +391,6 @@ void MainClass::event(int ID, void *data) {
 							DiagSensor6A->Run();
 							DBG("Adding Sensor %p to dynamic list",DiagSensor6A);
 							dynamicSensors.AddSensor(DiagSensor6A);
-							void *p = NULL;
-							DBG(" EVENT MAIN sp = %p", &p);
 					} else {
 						DBG("Wrong BUS number (%d-%d-%d)... free memory and abort",ch,cl,bus);
 						delete(DiagCalc);
@@ -441,6 +419,7 @@ void MainClass::event(int ID, void *data) {
 	} else if(s == osEventTimeout) {
 		DBG("Could not obtain lock to change the ongoing Diagnoses.. data will be dropped");
 	}
+#endif
 }
 
 int main(void) {
