@@ -16,6 +16,8 @@ public:
 	void CheckSDFileSystem(void);
 	void LoadCalculators(void);
 	void run(void);
+	bool StopDynSensors(void);
+	void NewDynSensors(char *data, int dataSz);
 	virtual void event(int ID, void *data);
 };
 

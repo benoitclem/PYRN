@@ -1,7 +1,7 @@
 
 #include "sd.h"
 
-#define __DEBUG__ 5
+#define __DEBUG__ 3
 #ifndef __MODULE__
 #define __MODULE__ "sd.cpp"
 #endif
@@ -9,8 +9,8 @@
  
 //#define DEBUG
 #define SD_COMMAND_TIMEOUT 5000
-char bufftmp[512]; 
-char cbbufftmp[512];
+char bufftmp[512] __attribute((section("AHBSRAM1")));
+char cbbufftmp[512]  __attribute((section("AHBSRAM1")));
  
 sdCard::sdCard(PinName mosi, PinName miso, PinName sclk, PinName cs) :
   _spi(mosi, miso, sclk), _cs(cs) {
@@ -133,6 +133,7 @@ int sdCard::disk_read(char *buffer, int block_number) {
 	if(access.trylock()){     
 	    // set read address for single block (CMD17)
 	    if(_cmd(17, block_number * cdv) != 0) {
+	    	DBG("HERE");
 	        return 1;
    		 }
     
@@ -140,7 +141,8 @@ int sdCard::disk_read(char *buffer, int block_number) {
     	_read(buffer, 512);
     	access.unlock();
     	return 0;
-    } 
+    }
+    DBG("HERE1"); 
     return 1;
 }
  
@@ -400,6 +402,7 @@ sdStorage::sdStorage(PinName mosi, PinName miso, PinName sclk, PinName cs, int i
 }
 
 int sdStorage::Read(char *buffer, int index, int length, int offset) {
+	DBG("SD-Read: Read n %d @ %d off:%d", length, index, offset);
 	int err = 1;
 	int nRead = 0;
 	int currSectorIndex = iSectorStart+index;
@@ -413,13 +416,17 @@ int sdStorage::Read(char *buffer, int index, int length, int offset) {
 	int nCpy = 0;
 	while(i<length) {
 		if((offset!=0) && (i == 0)){
+			//DBG("SD-Read: LA");
 			nCpy = 512 - offset;
+			if(nCpy>length)
+				nCpy = length;
 		} else {
 			nCpy = ((length-i)>512)?512:(length-i);
 		}
 		err = sd->disk_read(bufftmp,currSectorIndex);
+		DBG_MEMDUMP("SD-Read:",bufftmp,512);
 		if(err) {
-			ERR("SD-Read: Something goes wrong");
+			ERR("SD-Read: Something goes wrong %d",err);
 		} else {
 			DBG("SD-Read: GOOD %d/%d %d",i+nCpy,length,currSectorIndex);
 		}
@@ -433,12 +440,13 @@ int sdStorage::Read(char *buffer, int index, int length, int offset) {
 }
 
 int sdStorage::Write(char *buffer, int index, int length, int offset) {
+	DBG("SD-Write: Write n %d @ %d off:%d", length, index, offset);
 	int err = 1;
 	int nWrite = 0;
-	int currSectorIndex = index;
+	int currSectorIndex = iSectorStart+index;
 	// Coarse Write size t
 	if((((nSectors-index)*512)-offset)<length) {
-		WARN("SD-Write: Try to read %d but max is %d",length,((nSectors-index)*512));
+		WARN("SD-Write: Try to read %d but max is %d %d*512 = %ld",length,nSectors,index,((nSectors-index)*512));
 		length = ((nSectors-index)*512);
 	}
 	DBG("SD-Write: before lock");
@@ -481,109 +489,157 @@ int sdStorage::Clear(int index) {
 	return err;
 }
 
-/*
 sdCircBuff::sdCircBuff(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects): 
 	sdStorage(mosi, miso, sclk, cs, iSectStart, nSects) {
 	// Trash first sector
 	Clear(0);
 	// Initiate the pointers
-	pointers.w = 0;
-	pointers.sw = 0;
-	pointers.r = 0;
-	pointers.sr = 0;
-	pointers.sz = 0;
+	size = nSects * 512;
+	current = 0;
+	pRead = 0;
+	pWrite = 0;
 }
 	
 // /!\ This is not thread safe /!\ .
-sdCircBuff::Put(char *buffer, int index, int length){
-	int offset = 0;
-	int nPut = 0;
-	if(pointers.sw != 0) {
-		// Need to read the data in sector
-		sd.read(cbbufftmp,pointers.w,pointers.sw+1);
-		offset = pointers.sw;
-	}
-	// Insert the size
-	if((512-pointers.sw) < sizeof(int)) {
-		// Size gonna be splitted at one sector boundary
-		cbbufftmp
-		memcpy(cbbufftmp+pointer.sw,(char*)&length,((512-pointers.sw) < sizeof(int))?512-pointers.sw:4);
-		sd.write(((char*)&length)+
-	} else {
-	}
-	memcpy(cbbufftmp+pointers.sw,(char*)&length,sizeof(int));
-	// put the size of block that will follow
-	sd.write((char*)&length,pointers.w,sizeof(int));
-	while(nPut<length){
-
-}
-*/
-
-/*
-int sdCircBuff::ComputeChecksum(int p1, int p2, int p3, int p4) {
-	return p1+p2+p3+p4;
-}
-
-char sdCircBuff::CheckChecksum(int p1, int p2, int p3, int p4, char cs) {
-	return cs == ComputeCheckSum(p1,p2,p3,p4);
-}
-*/
-
-/* En partique ca ne peu pas marcher
-int sdStorage::BCRead(char *buffer, int length) {
-	int err = 1;
-	DBG("SD-Read: length = %d",length);
-	if(rSectorIndex != wSectorIndex) {
-		if(SectorAccess.trylock()){
-			if(usedSectors) {
-				for(int i = 0; i<length; i+=512) {
-					DBG("SD-Read-B: rSector = %d | wSector = %d | used = %d",rSectorIndex,wSectorIndex, usedSectors);
-					err = sd->disk_read(buffer+i,rSectorIndex);
-					if(err) {
-						ERR("SD-Write: Something goes wrong");
+int sdCircBuff::Put(char *buffer, int length){
+	if(access.trylock()) {
+		if((length<0)||(length>2048)) {
+			DBG("SDCircBuff: PUT - bloc %d size is forbidden",length);
+			return 0;
+		}
+		DBG("SDCircBuff: PUT - (%d %d %d)%d < %d",current,length,sizeof(int),current+length+sizeof(int),size);
+		if((current+length+sizeof(int))<size) {
+			if((length+sizeof(int))<=(size-pWrite)) {
+				DBG("SDCircBuff: PUT - No split");
+				Write((char*)&length, pWrite/512, sizeof(int), pWrite%512);
+				pWrite+=sizeof(int);
+				Write(buffer, pWrite/512, length, pWrite%512);
+				pWrite+=length;
+				if(pWrite==size){
+					DBG("SDCircBuff: PUT - wrap");
+					pWrite = 0;
+				}
+			} else {
+				DBG("SDCircBuff: PUT - need to be splitted at buffer end");
+				if(sizeof(int)==(size-pWrite)) {
+					DBG("SDCircBuff: PUT - The split is between header and data");
+					Write((char*)&length, pWrite/512, sizeof(int), pWrite%512);
+					Write(buffer, 0, length, 0);
+					pWrite = length;
+				} else {
+					// Header Part
+					if((sizeof(int))<(size-pWrite)) {
+						Write((char*)&length, pWrite/512, sizeof(int), pWrite%512);
+						pWrite+=sizeof(int);
+					} else {
+						DBG("SDCircBuff: PUT - The split part is in size header");
+						int sz = (size-pWrite);
+						int compSz = sizeof(int) - sz;
+						Write((char*)&length, pWrite/512, sz, pWrite%512);
+						Write(((char*)&length)+sz, 0, compSz, 0);
+						pWrite = compSz;
 					}
-					rSectorIndex++;
-					if(rSectorIndex >= nSectors)
-						rSectorIndex = 0;
-					usedSectors--;
-					DBG("SD-Read-A: rSector = %d | wSector = %d | used = %d",rSectorIndex,wSectorIndex, usedSectors);
+					// Data Part
+					if(length<(size-pWrite)) {
+						Write(buffer, pWrite/512, length, pWrite%512);
+						pWrite+=length;
+					} else {
+						DBG("SDCircBuff: PUT - The split part is in data");
+						int sz = (size-pWrite);
+						int compSz = length - sz;
+						Write(buffer, pWrite/512, sz, pWrite%512);
+						Write(buffer+sz, 0, compSz, 0);
+						pWrite = compSz;
+					}
 				}
 			}
-			SectorAccess.unlock();
+		} else {
+			DBG("SDCircBuff: PUT - failed, no space sufficient");
+			return 0;
 		}
-	}
-	return err;
+		current += (length+sizeof(int));
+		DBG("SDCircBuff: PUT - curent = %d - %d - %d",current,pRead,pWrite);
+		access.unlock();
+		return length;
+	} else {DBG("CACA");}
+	return 0;
 }
-		
-int sdStorage::BCWrite(char *buffer, int length) {
-	int err = 1;
-	int wSectTempIndex = wSectorIndex;
-	int usedTempSectors = usedSectors;
-	int nSectorToWrite = (length/512)+(length%512)?1:0;
-	DBG("SD-Write: length = %d, nSectorToWrite = %d",length, nSectorToWrite);
-	if(nSectorToWrite) {
-		if(SectorAccess.trylock()){
-			for(int i = 0; i< length; i+=512) {
-				DBG("SD-Write-B: rSector = %d | wSector = %d | used = %d",rSectorIndex,wSectTempIndex, usedTempSectors);
-				err = sd->disk_write(buffer+i,wSectTempIndex);
-				if(err) {
-					ERR("SD-Write: Something goes wrong");
-					break;
+
+int sdCircBuff::Get(char *buffer, int length){
+	if(access.trylock()) {
+		int blocLen;
+		if(current) {
+			// Get the header bloc
+			if(sizeof(int)<=(size-pRead)) {
+				Read((char*)&blocLen,pRead/512, sizeof(int), pRead%512);
+				pRead += sizeof(int);
+				if(sizeof(int)==(size-pRead)) {
+					DBG("SDCircBuff: GET - wrap");
+					pRead = 0;
 				}
-				wSectTempIndex++;
-				if(wSectTempIndex >= nSectors)
-					wSectTempIndex = 0;
-				usedTempSectors++; 
-				DBG("SD-Write-A: rSector = %d | wSector = %d | used = %d",rSectorIndex,wSectTempIndex, usedTempSectors);
+			} else {
+				int sz = (size-pRead);
+				int compSz = sizeof(int) - sz;
+				Read((char*)&blocLen,pRead/512, sz, pRead%512);
+				Read(((char*)&blocLen)+sz,0, compSz, 0);
+				pRead = compSz;
 			}
-			if(err == 0) {
-				wSectorIndex = wSectTempIndex;
-				usedSectors = usedTempSectors;
+			DBG("SDCircBuff: GET - Block Header %d",blocLen);
+			if((blocLen<=0)||(blocLen>=2048)){
+				DBG("SDCircBuff: GET - Wrong Block header size");
+				return -1;
 			}
-			SectorAccess.unlock();
+			if(blocLen>length){
+				DBG("SDCircBuff: GET - Block can’t be stored in passed buffer");
+				return -1;
+			}
+			if(blocLen<=(size-pRead)) {
+				Read(buffer,pRead/512, blocLen, pRead%512);
+				pRead += blocLen;
+				DBG("SDCircBuff: GET - %d",pRead);
+				if(blocLen==(size-pRead)) {
+					DBG("SDCircBuff: GET - wrap");
+					pRead = 0;
+				}
+			} else {
+				int sz = (size-pRead);
+				int compSz = blocLen - sz;
+				Read(buffer, pRead/512, blocLen, pRead%512);
+				Read(buffer+sz, 0, compSz, 0);
+				pRead = compSz;
+			}
+		} else {
+			DBG("SDCircBuff: GET - failed, no data in buffer");
+			return 0;
 		}
+		current -= (blocLen+sizeof(int));
+		DBG("SDCircBuff: GET - curent = %d - %d - %d",current,pRead,pWrite);
+		access.unlock();
+		return blocLen;
 	}
-	return err;
+	return 0;
 }
-		
-*/		
+
+int sdCircBuff::Probe(){
+	int blocLen = 0;
+	if(access.trylock()) {
+		if(current) {
+			// Get the header bloc
+			if(sizeof(int)<=(size-pRead)) {
+				Read((char*)&blocLen,pRead/512, sizeof(int), pRead%512);
+				if(sizeof(int)==(size-pRead)) {
+					DBG("SDCircBuff: GET - wrap");
+					pRead = 0;
+				}
+			} else {
+				int sz = (size-pRead);
+				int compSz = sizeof(int) - sz;
+				Read((char*)&blocLen,pRead/512, sz, pRead%512);
+				Read(((char*)&blocLen)+sz,0, compSz, 0);
+			}
+			DBG("SDCircBuff: ProbeBlocSize - Block Header %d",blocLen);
+		}
+		access.unlock();
+	}
+	return blocLen;
+}

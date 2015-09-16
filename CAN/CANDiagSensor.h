@@ -12,7 +12,7 @@
 #include "MyMemoryAllocator.h"
 
 #define CAN_DIAG_STORE_SIZE		128
-#define CAN_DIAG_THREAD_STACK_SIZE   2*1280
+#define CAN_DIAG_THREAD_STACK_SIZE   2*1400
 
 class CANDiagSensorBase: public MySensor, public MyMemoryObject  {
 protected:

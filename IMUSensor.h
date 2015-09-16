@@ -7,7 +7,7 @@
 #include "MyMemoryAllocator.h"
 
 #define IMU_STORE_SIZE      	128
-#define IMU_THREAD_STACK_SIZE   512
+#define IMU_THREAD_STACK_SIZE   576
 
 class IMUSensor: public MySensor, public MyMemoryObject {
 protected:

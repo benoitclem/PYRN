@@ -3,7 +3,7 @@
 #include "NTPClient.h"
 #include "UDPSocket.h"
 
-#define __DEBUG__ 3
+#define __DEBUG__ 0
 #ifndef __MODULE__
 #define __MODULE__ "CANDiagCalculator.cpp"
 #endif

@@ -46,22 +46,20 @@ class sdStorage{
 		int	nSectors;
 };
 
-/*
+// The CircBuff is a multiple thread access so add mutex
 class sdCircBuff: public sdStorage{
 	public:
+		Mutex access;
 		sdCircBuff(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects);
-		int Put(char *buffer, int index, int length);
-		int Get(char *buffer, int index, int length);
+		int Put(char *buffer, int length);
+		int Get(char *buffer, int length);
+		int Probe();
 		//int ComputeChecksum(int p1, int p2, int p3, int p4);
 		//bool CheckChecksum(int p1, int p2, int p3, int p4, int cs);
 	protected:
-		struct {
-			int w;
-			int sw;
-			int r;
-			int sr;
-			int sz;
-		} __attribute__((packed)) pointers;
+		int size;
+		int current;
+		int pRead;
+		int pWrite;
 };
-*/
 #endif

@@ -13,8 +13,8 @@
 
 #define CAN_THREAD_STACK_SIZE   768
 
-static CAN can1(p9, p10);
-static CAN can2(p30, p29);
+static CAN can1(p9, p10) __attribute((section("AHBSRAM1")));
+static CAN can2(p30, p29) __attribute((section("AHBSRAM1")));
 
 DigitalOut led3(LED3);
 DigitalOut led4(LED4);
