@@ -33,23 +33,27 @@ protected:
     int cdv;    
 };
 
-static sdCard *sd = NULL;
+#include "storageBase.h"
 
-class sdStorage{
+static sdCard *sd = NULL;
+static Mutex *access = NULL;
+
+class sdStorage: public storage{
 	public:
 		sdStorage(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects);
 		int Read(char *buffer, int index, int length, int offset = 0);
 		int Write(char *buffer, int index, int length, int offset = 0);
 		int Clear(int index);
 	protected:
+
 		int iSectorStart;
 		int	nSectors;
 };
 
 // The CircBuff is a multiple thread access so add mutex
-class sdCircBuff: public sdStorage{
+class sdCircBuff: public sdStorage {
+//class sdCircBuff: public circBuff{
 	public:
-		Mutex access;
 		sdCircBuff(PinName mosi, PinName miso, PinName sclk, PinName cs, int iSectStart, int nSects);
 		int Put(char *buffer, int length);
 		int Get(char *buffer, int length);

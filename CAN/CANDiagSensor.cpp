@@ -64,7 +64,7 @@ CANDiagSensor6A::CANDiagSensor6A(CANDiagCalculator *calc, CANCommunicator6A *com
 void CANDiagSensor6A::KeepAliveSequence() {
 	DBG("[%08x] KeepAliveSequenceStart", calculator->GetCalcId());
 	CANDiagCommandHeader *hdrCmd = NULL;
-	char response[8];
+	char response[32];
 	uint8_t len = 0; 
 	calculator->FirstCommand(&hdrCmd,CMD_KEEP_ALIVE);
 	if(hdrCmd){
@@ -80,7 +80,7 @@ void CANDiagSensor6A::KeepAliveSequence() {
 void CANDiagSensor6A::DiagStart() {
 	DBG("[%08x] DiagStartSequence", calculator->GetCalcId());
 	CANDiagCommandHeader *hdrCmd = NULL;
-	char response[8];
+	char response[32];
 	uint8_t len = 0; 
 	calculator->FirstCommand(&hdrCmd,CMD_DIAG_START);
 	if(hdrCmd){
@@ -95,7 +95,7 @@ void CANDiagSensor6A::DiagStart() {
 void CANDiagSensor6A::DiagSequence(){
 	DBG("[%08x] DiagSequence START", calculator->GetCalcId());
 	CANDiagCommandHeader *hdrCmd = NULL;
-	char response[32];
+	char response[64];
 	uint8_t len = 0;
 
 	// Get first CMD_NORM to Execute
@@ -111,6 +111,7 @@ void CANDiagSensor6A::DiagSequence(){
 		ComHandler->ExecuteCommand(hdrCmd->cmd,hdrCmd->size,response,&len, 100);
 		DiagTxCMD.unlock();
 		// the result is recorded
+		//if(false){
 		if(len){
 			char s[32];
 			sprintf(s,"[%08x] DiagSequence Receiced",calculator->GetCalcId());

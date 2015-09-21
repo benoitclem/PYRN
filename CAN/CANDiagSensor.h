@@ -10,9 +10,7 @@
 #include "CANInterface.h"
 #include "CANCommunicator6A.h"
 #include "MyMemoryAllocator.h"
-
-#define CAN_DIAG_STORE_SIZE		128
-#define CAN_DIAG_THREAD_STACK_SIZE   2*1400
+#include "Configs.h"
 
 class CANDiagSensorBase: public MySensor, public MyMemoryObject  {
 protected:

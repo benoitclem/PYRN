@@ -31,14 +31,19 @@
 #include "NTPClient.h"
 #include "ComHandler.h"
 
+#include "storageBase.h"
+
+#include "Configs.h"
+
 #include "sd.h"
 
 //#define BLINKER
 #define THREAD_MONITOR
 //#define APP_TEST
 //#define APP_CANV10
-//#define CAN_SIMULATOR
+#define CAN_SIMULATOR
 //#define APP_SHARKAN
+//#define APP_STORAGE
 //#define APP_SDSPI
 #define APP_CANONAIR
 bool printThread;
@@ -47,7 +52,7 @@ bool newCalcPending;
 char dataResult[1024]  __attribute((section("AHBSRAM1")));
 extern MyMemoryAllocator memAlloc;
 
-sdStorage *calcStorage;
+storage *calcStorage;
 
 CANInterface *c;
 
@@ -96,6 +101,111 @@ void MainClass::run(void) {
 
 #ifdef THREAD_MONITOR
 	Thread monitor(threadMonitor,NULL,osPriorityNormal,512);
+#endif
+
+#if defined APP_STORAGE
+	int r = 0;
+	int sz = 20;
+	char* buff = (char*) malloc(sizeof(char)*256);
+	DBG("STORAGE APP RAMSTORAGE - TEST");
+	ramStorage *rs = new ramStorage(1024); 
+	ramCircBuff *rcb = new ramCircBuff(1024); 
+
+	DBG("SECTOR 0");
+	sz = 10;
+	r = rs->Read((char*)&sz,0,sizeof(int));
+	DBG("[%d][0] -> sz = %d",r,sz);
+	sz = 30;
+	r = rs->Write((char*)&sz,0,sizeof(int));
+	r = rs->Read((char*)&sz,0,sizeof(int));
+	DBG("[%d][0] -> sz = %d",r,sz);
+
+	DBG("SECTOR 1");
+	memset(buff,0xa5,128);
+	r= rs->Read(buff,1,128);
+	DBG("[%d]",r);
+	// Lit a vide donc que des zero si le buffer est clear a l'instanciation
+	DBG_MEMDUMP("dbg",buff,128); 
+	memset(buff,0xa5,128);
+	r = rs->Write(buff,1,128);
+	memset(buff,0xaa,128);
+	r = rs->Read(buff,1,20);
+	DBG("[%d]",r);
+	// 20 octects a 0xa5 le reste a 0Xaa 
+	DBG_MEMDUMP("dbg",buff,128);
+	r = rs->Read(buff,1,128);
+	DBG("[%d]",r);
+	DBG_MEMDUMP("dbg",buff,128);
+
+	memset(buff,0xa0,128);
+	r = rs->Write(buff,1,20);
+	memset(buff,0x0a,128);
+	r = rs->Read(buff,1,64);
+	// 20o 0xa0 puis jusqua 64 de 0xa5 le reste de 0x0a
+	DBG_MEMDUMP("dbg",buff,128);
+
+	DBG("SECTOR 3");
+	DBG("[%d]",r);
+	r = rs->Read(buff,3,64);
+	DBG("[%d]",r);
+	DBG_MEMDUMP("dbg",buff,128);
+	r = rs->Write(buff,3,64);
+	DBG("[%d]",r);
+	DBG_MEMDUMP("dbg",buff,128);
+
+	DBG("rcb");
+	memset(buff,0x90,32);
+	r = rcb->Get(buff,16);
+	DBG("[%d]",r);
+	if(r)
+		DBG_MEMDUMP("dbg",buff,r);
+	else
+		DBG("GOT NO DATA");
+	memset(buff,0x01,32);
+	r = rcb->Put(buff,3);
+	DBG("[%d]",r);
+	memset(buff,0x02,32);
+	r = rcb->Get(buff,256);
+	DBG("[%d]",r);
+	DBG_MEMDUMP("dbg",buff,r);
+
+	DBG("4 PUTS");
+	int i = 4;
+	char c = 0;
+	while(i--) {
+		memset(buff,c++,141);
+		r = rcb->Put(buff,141);
+		DBG("%d - [%d]",i,r);
+	}
+
+	DBG("15 PUTS + GETS");
+	i = 15;
+	while(i--) {
+		memset(buff,c++,141);
+		r = rcb->Put(buff,141);
+		DBG("%d - [%d]",i,r);
+		r = rcb->Get(buff,256);
+		DBG("%d - [%d]",i,r);
+		DBG_MEMDUMP("dbg",buff,r);
+	}
+
+	DBG("15 PUTS");
+	i = 15;
+	while(i--) {
+		memset(buff,c++,141);
+		r = rcb->Put(buff,141);
+		DBG("%d - [%d]",i,r);
+	}
+
+	DBG("15 GETS");
+	i = 15;
+	while(i--) {
+		memset(buff,c++,256);
+		r = rcb->Get(buff,256);
+		DBG("%d - [%d]",i,r);
+		DBG_MEMDUMP("dbg",buff,r);
+	}
+
 #endif
 
 #if defined APP_TEST
@@ -231,26 +341,35 @@ void MainClass::run(void) {
 	imu->Stop();
 
 #elif defined APP_CANONAIR
-	DBG("CAN APP");
+	DBG("CAN APP %d",sizeof(int));
 	
 	newCalcPending = false;
-	printThread = true;
+	printThread = false;
 	// Set a wdt with 60s timer
 	MyWatchdog wdt(60);
 
 	PyrnUSBModem modem;
 	
 	// Create sd calc access;
-	calcStorage = new sdStorage(p5,p6,p7,p8,0,100);
-	
+	//calcStorage = new sdStorage(p5,p6,p7,p8,0,100);
+	calcStorage = new ramStorage(512);
+
 	int dataSz = 0;
 	int err = calcStorage->Read((char*)&dataSz,0,sizeof(int));
-	if(err!=1) {
+	if(err!=-1) {
 		DBG("CHECK IF CALCULATOR STORED %d",dataSz);
 		if((dataSz>0) and (dataSz<2048)) {
-			calcStorage->Read(dataResult,1,dataSz);
-			DBG_MEMDUMP("CHECK",dataResult,dataSz);
+			err = calcStorage->Read(dataResult,1,dataSz);
+			if(err!=-1) {
+				DBG_MEMDUMP("CHECK",dataResult,dataSz);
+			} else {
+				DBG("ERROR Reading calcData in sector 1");
+			}
+		} else {
+			DBG("ERROR Wrong calcData Size %d",dataSz);
 		}
+	} else {
+		DBG("ERROR Reading calcSz in sector 0");
 	}
 	
 	int connected = modem.connect("a2bouygtel.com","","");
@@ -267,8 +386,12 @@ void MainClass::run(void) {
 		ntp->setTime("0.europe.pool.ntp.org");
 		delete ntp;
 		
+		#define COM_HANDLER_THREAD_STACK_SIZE   3*1024
+		unsigned char *sp = (unsigned char*) memAlloc.malloc(COM_HANDLER_THREAD_STACK_SIZE);
+
+
 		// 3G (configure the system to return ASAP for the first connection)
-		ComHandler comm(this,"AAAAAAAAAAAAAAA",ComHandler::TT_HALF);
+		ComHandler comm(this,"AAAAAAAAAAAAAAA",ComHandler::TT_HALF,sp);
 
 		// CAN 
 		CANInterface canItf;
@@ -278,8 +401,8 @@ void MainClass::run(void) {
 		// The static list of sensors (GPS/IMU/...)
 		IMUSensor *imu = new IMUSensor(p28,p27);
 		staticSensors.AddSensor(imu);
-		//GPSSensor *gps = new GPSSensor(p13,p14,4,250);
-		//staticSensors.AddSensor(gps);
+		GPSSensor *gps = new GPSSensor(p13,p14,4,250);
+		staticSensors.AddSensor(gps);
 		
 		int dataSz = 0;
 		calcStorage->Read((char*)&dataSz,0,sizeof(int));
@@ -297,8 +420,8 @@ void MainClass::run(void) {
 		SimuHdr.hdrVer = 1;
 		SimuHdr.diagCode = 0x6A;
 		SimuHdr.speed = 500;
-		SimuHdr.addrSrc = 0x752;
-		SimuHdr.addrDst = 0x652;
+		SimuHdr.addrSrc = 0x652;
+		SimuHdr.addrDst = 0x752;
 		SimuHdr.pinh = 6;
 		SimuHdr.pinl = 14;
 		SimuHdr.cmdLen = 0;
@@ -315,14 +438,14 @@ void MainClass::run(void) {
 
 		// Threads
 		imu->Start();
-		//gps->Start();
+		gps->Start();
 		comm.Start();
 		//DiagSensor6A->Start();
 		canItf.Start();
 
 
 		imu->Run();
-		//gps->Run();
+		gps->Run();
 		comm.Run();
 		//DiagSensor6A->Run();
 		canItf.Run();
@@ -372,6 +495,7 @@ void MainClass::run(void) {
 							} else {
 								DBG("Result could not be writen");
 							}
+							
 						}
 					}
 				}
@@ -398,7 +522,7 @@ void MainClass::run(void) {
 #endif
 
 		imu->Stop();
-		//gps->Stop();
+		gps->Stop();
 		//DiagSensor6A.Stop();   
 		canItf.Stop();
 	}
@@ -518,11 +642,20 @@ void MainClass::event(int ID, void *data) {
 	DBG("event received");
 	int dataSz = ID;
 	char *pData = (char*)data;
+	int err = -1;
 	if(dataSz != 0) {
 		DBG_MEMDUMP("RX DATA", pData, dataSz);
 		DBG("Store new calculator Size(%d)",dataSz);
-		calcStorage->Write((char*)&dataSz,0,sizeof(int));
-		calcStorage->Write(pData,1,dataSz);
+		err = calcStorage->Write((char*)&dataSz,0,sizeof(int));
+		if(err == -1) {
+			DBG("Error While Writing calcSz in sector 0 ... now abort");
+			return;
+		}	
+		err = calcStorage->Write(pData,1,dataSz);
+		if(err == -1) {
+			DBG("Error While Writing calcData in sector 1 ... now abort");
+			return;
+		}	
 		newCalcPending = true;
 	}
 }

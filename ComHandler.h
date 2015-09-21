@@ -6,10 +6,11 @@
 #include "PyrnUSBModem.h"
 #include "HTTPClient.h"
 #include "MyCallBack.h"
-
+#include "Configs.h"
+#include "storageBase.h"
 #include "sd.h"
 
-#define XFER_BUFF_SZ 512
+#define XFER_BUFF_SZ 					512
 
 typedef struct _SizedData {
 	uint16_t sz;
@@ -45,9 +46,15 @@ protected:
 	uint16_t maxLen;
 	HTTPClient http;
 	int dataSz;
-	sdCircBuff dataStorage;
+	ramCircBuff dataStorage;
+	//sdCircBuff dataStorage;
 public:
-	ComHandler(MyCallBack *callback, const char*idProduct, ComHandler::transferType ltt = TT_HALF, char *pTXBuff = NULL, uint16_t maxBuff = 0);
+	ComHandler(MyCallBack *callback, 
+				const char*idProduct, 
+				ComHandler::transferType ltt = TT_HALF, 
+				unsigned char *sp = NULL,
+				char *pTXBuff = NULL, 
+				uint16_t maxBuff = 0);
 	virtual void SetTransferType(ComHandler::transferType ltt);
 	virtual bool NeedTransfer(void);
 	virtual void Main(void);

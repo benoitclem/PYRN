@@ -5,11 +5,7 @@
 #include "MySensor.h"
 #include "MODSERIAL.h"
 #include "TinyGPS.h"
-
-#define GPS_THREAD_STACK_SIZE   768
-
-#define GPS_STORE_SIZE      256
-#define GPS_RECV_BUFF       512
+#include "Configs.h"
 
 class GPSSensor: public MySensor {
 protected:

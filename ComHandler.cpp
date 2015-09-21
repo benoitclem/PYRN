@@ -4,23 +4,27 @@
 #include "HTTPRawData.h"
 #include "MyMemoryAllocator.h"
 #include "Storage.h"
+#include "Config.h"
 
-#define __DEBUG__ 5
+#define __DEBUG__ COM_HANDLER_DEBUG_LVL
 #ifndef __MODULE__
 #define __MODULE__ "ComHandler.cpp"
 #endif
 #include "MyDebug.h"
 
-#define COM_HANDLER_BUFF_SIZE			2096
-#define COM_HANDLER_THREAD_STACK_SIZE   3*1024
-#define COM_HANDLER_MIN_PKTSZ			128
-
 #define DATA_STORAGE_DATASZ_IDX		0			
 
-extern Storage 			*storage;
 extern MyMemoryAllocator memAlloc;
 
-ComHandler::ComHandler(MyCallBack *callback, const char* idProduct, ComHandler::transferType ltt, char *pTXBuff, uint16_t maxBuff): MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE), dataStorage(p5,p6,p7,p8,100,10000) {
+ComHandler::ComHandler(MyCallBack *callback, 
+	const char* idProduct, 
+	ComHandler::transferType ltt, 
+	unsigned char *sp, 
+	char *pTXBuff, 
+	uint16_t maxBuff):
+	 MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE,sp), 
+	 /*dataStorage(p5,p6,p7,p8,100,10000)*/
+	 dataStorage(1024) {
 	cb = callback;
 	if(pTXBuff != NULL) {
 		TXBuff = pTXBuff;
@@ -123,9 +127,9 @@ void ComHandler::DoServerRequest(void) {
 		while(1) {
 			int r = dataStorage.Probe();
 			if(r<0) {
-				DBG("Error in dataStorage get");
+				DBG("Error in dataStorage ... Stop request\n");
 				send = false;
-				break;
+				return;
 			} else if(r==0) {
 				DBG("No more data ... get out");
 				send = false;
@@ -135,6 +139,10 @@ void ComHandler::DoServerRequest(void) {
 				break;
 			} else {
 				int l = dataStorage.Get(TXBuff+currLen,2096);
+				if(l == -1) {
+					DBG("Error in dataStorage ... Stop request\n");
+					return;
+				}	
 				currLen += l;
 				dataSz -= l;
 			}
@@ -175,6 +183,11 @@ bool ComHandler::AddResults(uint8_t SensorType, char *ldata, uint16_t len) {
 	TXBuff[2] = (char) (len>>8) & 0xff;
 	memcpy(TXBuff+3,ldata,len);
 	int r = dataStorage.Put(TXBuff,len+3);
+	if(r == -1) {
+		DBG("Error putting the result into dataStorage... droping data");
+		BuffMtx.unlock();
+		return false;
+	}
 	DBG("Write to Storage %d",r);
 	if(r) {
 		dataSz += r;

@@ -1,14 +1,14 @@
 
 #include "MyMemoryAllocator.h"
+#include "Configs.h"
 
-#define __DEBUG__ 0
+#define __DEBUG__ ALLOC_DEBUG_LVL
 #ifndef __MODULE__
 #define __MODULE__ "MyMemoryAllocator.cpp"
 #endif
 #include "MyDebug.h"
 
 //#define ALLOC_MEM_SIZE 8192
-#define ALLOC_MEM_SIZE 15104
 
 char memory[ALLOC_MEM_SIZE] __attribute((section("AHBSRAM0")));
 MyMemoryAllocator memAlloc(memory,ALLOC_MEM_SIZE);

@@ -3,8 +3,10 @@
 #include "CANDiagCalculator.h"
 #include "CANCommon.h"
 #include "MyCallBackIds.h"
+#include "MyOsHelpers.h"
+#include "Configs.h"
 
-#define __DEBUG__ 0
+#define __DEBUG__ CAN_COMM_DEBUG_LVL
 #ifndef __MODULE__
 #define __MODULE__ "CANCommunicator6A.cpp"
 #endif
@@ -46,6 +48,7 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 			// Wait for answer
 			while(!endCmd) {
 				// TODO: Compute timeouts
+				DBG("GET = %d",msTmo);
 				evt = queue.get(msTmo);
 				if(evt.status == osEventMessage) {
 					CANMessage *msg = (CANMessage*) evt.value.p;
@@ -97,6 +100,7 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 					}
 					delete(msg);
 				} else if (evt.status == osEventTimeout) {
+					//PrintActiveThreads();
 					DBG("ExecuteCommand - failed (timeout)");
 					// Reset state machine and exit rcv loop
 					state = IDLE;
@@ -113,7 +117,7 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 }
 
 // The SLAVE Stuffs
-#define NO_RESP				00
+#define NO_RESP					00
 #define SHORT_RESP			01
 #define LONG_RESP 			02
 
@@ -132,6 +136,7 @@ uint8_t CANCommunicatorSim6A::RequestDB(char *cmd, uint8_t clen, char *results, 
 		if( ((cmd[0] == 0x10) && (cmd[1] == 0xC0)) ||
 				((cmd[0] == 0x21) && (cmd[1] == 0xB0)) ||
 				((cmd[0] == 0x21) && (cmd[1] == 0xC0)) ||
+				((cmd[0] == 0x21) && (cmd[1] == 0xCB)) ||
 				((cmd[0] == 0x21) && (cmd[1] == 0xC2)) ||
 				((cmd[0] == 0x21) && (cmd[1] == 0xC9)) ) {
 			DBG("ComSlave: Talking to us 0x10C0");
