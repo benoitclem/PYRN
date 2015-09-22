@@ -39,7 +39,7 @@ public:
 
 class CANCommunicatorMaster: public CANCommunicatorBase {
 protected:
-	Queue<CANMessage,3> queue;
+	Queue<CANMessage,10> queue;
 public:
 	CANCommunicatorMaster(CANInterface *can, uint8_t bus, CANDiagCalculator *c);
 	virtual void FlushQueue(void);

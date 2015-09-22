@@ -48,7 +48,7 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 			// Wait for answer
 			while(!endCmd) {
 				// TODO: Compute timeouts
-				DBG("GET = %d",msTmo);
+				// DBG("GET = %d",msTmo);
 				evt = queue.get(msTmo);
 				if(evt.status == osEventMessage) {
 					CANMessage *msg = (CANMessage*) evt.value.p;

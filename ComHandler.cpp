@@ -20,9 +20,10 @@ ComHandler::ComHandler(MyCallBack *callback,
 	const char* idProduct, 
 	ComHandler::transferType ltt, 
 	unsigned char *sp, 
+	unsigned int sSz,
 	char *pTXBuff, 
 	uint16_t maxBuff):
-	 MyThread("ComHandler",COM_HANDLER_THREAD_STACK_SIZE,sp), 
+	 MyThread("ComHandler",sSz,sp), 
 	 /*dataStorage(p5,p6,p7,p8,100,10000)*/
 	 dataStorage(1024) {
 	cb = callback;
@@ -37,8 +38,6 @@ ComHandler::ComHandler(MyCallBack *callback,
 
 	memcpy(hdr.imei,idProduct,15);
 	memset(hdr.idCfg,0xa5,40);
-	
-	dataSz = 0;
 
 	first = true;
 }
@@ -48,21 +47,20 @@ void ComHandler::SetTransferType(ComHandler::transferType ltt) {
 }
 
 bool ComHandler::NeedTransfer(void) {
-	uint16_t limit = 0;
+	float limit = 0;
 	switch(tt) {
 		case TT_ASAP:
 			return true;
 		case TT_HALF:
-			limit = maxLen/2;
+			limit = 0.5;
 			break;
-		case TT_FULL:
-			limit = maxLen;
+		case TT_ALMOST_FULL:
+			limit = 0.8;
 			break;
-		case TT_TWICE:
-			limit = maxLen*2;
 	}
-	DBG("NeedTransfer dataSz = %d ??",dataSz);
-	return (dataSz>=limit)||first;
+	float lvl = dataStorage.FillLevel();
+	DBG("NeedTransfer %f>=%f ??",lvl,limit);
+	return (lvl>=limit)||first;
 }
 
 void ComHandler::Main(void) {
@@ -91,8 +89,6 @@ void ComHandler::DoServerRequest(void) {
 		// Clear data
 		memset(RXBuff,0,XFER_BUFF_SZ);
 	
-
-	
 		currLen = 0;
 	
 		// Create a Frame
@@ -104,26 +100,6 @@ void ComHandler::DoServerRequest(void) {
 		uint16_t r = 0;
 		DBG("Now build a frame from storage");
 	
-		/*
-		while(1) {
-			// Read Impact Header to
-			storage->ReadData("impacts", (uint8_t*)hdrTmp, 3, 0,false);
-			DBG_MEMDUMP("HdrTmp", hdrTmp, 3);
-			s = *((uint16_t*)(hdrTmp+1));
-			DBG("Try to add %d char to %d/%d buff", s, currLen, maxLen);
-			if((currLen+s)<maxLen) {
-				r = storage->ReadData("impacts", (uint8_t*)(TXBuff+currLen), s+3, 0, true);
-				if(r == 0) {
-					DBG("Storage is now empty ... close frame");
-					break;
-				}
-			} else {
-				DBG("Reached Frame max size ... close frame");
-				break;
-			}
-		}
-		*/
-
 		while(1) {
 			int r = dataStorage.Probe();
 			if(r<0) {
@@ -144,7 +120,6 @@ void ComHandler::DoServerRequest(void) {
 					return;
 				}	
 				currLen += l;
-				dataSz -= l;
 			}
 		}
 
@@ -188,11 +163,7 @@ bool ComHandler::AddResults(uint8_t SensorType, char *ldata, uint16_t len) {
 		BuffMtx.unlock();
 		return false;
 	}
-	DBG("Write to Storage %d",r);
-	if(r) {
-		dataSz += r;
-		DBG("DataSz is %d",dataSz);
-	}
+	DBG("Writed to Storage %d",r);
 	BuffMtx.unlock();
 	return r==(len+3);		
 }

@@ -1,8 +1,9 @@
 
 
 #include "CANInterface.h"
+#include "Configs.h"
 
-#define __DEBUG__ 0
+#define __DEBUG__ CAN_ITF_DEBUG_LVL
 #ifndef __MODULE__
 #define __MODULE__ "CANInterface.cpp"
 #endif
@@ -10,8 +11,6 @@
 #include "CANCommon.h"
 #include "CANInterface.h"
 #include "MyCallBackIds.h"
-
-#define CAN_THREAD_STACK_SIZE   768
 
 static CAN can1(p9, p10) __attribute((section("AHBSRAM1")));
 static CAN can2(p30, p29) __attribute((section("AHBSRAM1")));
@@ -108,6 +107,7 @@ void CANInterface::DelCallBackForId(uint8_t bus, uint32_t id) {
 
 void CANInterface::DispatchCANMessage(uint8_t bus, CANMessage *msg) {
     for(int i = 0; i<nCurrentCbs; i++){
+        CANPrintWorkAround("CANItf TX",bus,msg->id,(char*)msg->data,msg->len);
 	    // Check if the entry is promiscuous
 	    if(idCbTable[i].id == CAN_ID_PROMISCUOUS_MODE)
 	        idCbTable[i].cb->event(CAN_CALLBACK|((bus)<<8),(void*) msg);

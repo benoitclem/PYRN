@@ -202,3 +202,7 @@ int ramCircBuff::Probe() {
 	}
 	return 0;
 }
+
+float ramCircBuff::FillLevel() {
+	return ((float)currSz)/((float)bSz);
+}

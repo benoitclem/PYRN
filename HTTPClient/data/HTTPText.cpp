@@ -19,6 +19,12 @@
 
 #include "HTTPText.h"
 
+#define __DEBUG__ 5
+#ifndef __MODULE__
+#define __MODULE__ "HTTPText.cpp"
+#endif
+#include "MyDebug.h"
+
 #include <cstring>
 
 #define OK 0
@@ -79,6 +85,7 @@ HTTPText::HTTPText(char* str, size_t size) : m_str(str), m_size(size), m_pos(0)
 /*virtual*/ int HTTPText::write(const char* buf, size_t len)
 {
   size_t writeLen = MIN(len, m_size - 1 - m_pos);
+  DBG("Writing %d char into a %d coerced in %d",len,m_size,writeLen);
   memcpy(m_str + m_pos, buf, writeLen);
   m_pos += writeLen;
   m_str[m_pos] = '\0';

@@ -8,6 +8,7 @@ class storage{
 		virtual int Read(char *buffer, int index, int length, int offset = 0) = 0;
 		virtual int Write(char *buffer, int index, int length, int offset = 0) = 0;
 		virtual int Clear(int index) = 0;
+
 };
 
 class circBuff{
@@ -16,6 +17,7 @@ class circBuff{
 		virtual int Put(char *buffer, int length) = 0;
 		virtual int Get(char *buffer, int length) = 0;
 		virtual int Probe() = 0;
+		virtual float FillLevel() = 0;
 };
 
 class ramStorage: public storage{
@@ -38,6 +40,7 @@ class ramCircBuff: public circBuff{
 		virtual int Put(char *buffer, int length);
 		virtual int Get(char *buffer, int length);
 		virtual int Probe(void);
+		virtual float FillLevel();
 	protected:
 		char *b;
 		int bSz;

@@ -22,8 +22,7 @@ public:
 	typedef enum _transferType {
 		TT_ASAP,
 		TT_HALF,
-		TT_FULL,
-		TT_TWICE,
+		TT_ALMOST_FULL,
 	} transferType;
 protected:
 	typedef struct _frameHdr {
@@ -53,6 +52,7 @@ public:
 				const char*idProduct, 
 				ComHandler::transferType ltt = TT_HALF, 
 				unsigned char *sp = NULL,
+				unsigned int sSz = 0,
 				char *pTXBuff = NULL, 
 				uint16_t maxBuff = 0);
 	virtual void SetTransferType(ComHandler::transferType ltt);

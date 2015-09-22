@@ -31,7 +31,7 @@ protected:
     uint32_t lastImpact;
     bool fixed;
 public:
-    GPSSensor(PinName tx, PinName rx, uint32_t trackingTime = 10, uint32_t idle = 250, uint32_t stackSz = GPS_THREAD_STACK_SIZE, unsigned char* sp = NULL);
+    GPSSensor(PinName tx, PinName rx, uint32_t trackingTime = 10, uint32_t idle = 1000, uint32_t stackSz = GPS_THREAD_STACK_SIZE, unsigned char* sp = NULL);
     virtual void InitResultsStatic(void);
     virtual void Loop(void);
     virtual void StoreLastImpact(void);

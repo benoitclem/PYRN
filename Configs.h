@@ -2,30 +2,32 @@
 #ifndef THREAD_CONFIG_H
 #define THREAD_CONFIG_H
 
-#define COM_HANDLER_THREAD_STACK_SIZE   3*1024
+#define COM_HANDLER_THREAD_STACK_SIZE   2*1024
 #define COM_HANDLER_BUFF_SIZE			2096
 #define COM_HANDLER_MIN_PKTSZ			128
 
 #define GPS_THREAD_STACK_SIZE  			768
-#define GPS_STORE_SIZE      			256
+#define GPS_STORE_SIZE      			128
 #define GPS_RECV_BUFF       			512
 
 #define IMU_THREAD_STACK_SIZE   		576
-#define IMU_STORE_SIZE      			128
+#define IMU_STORE_SIZE      			256
 
-#define CAN_DIAG_THREAD_STACK_SIZE  	1024
-#define CAN_DIAG_STORE_SIZE				128
+#define CAN_DIAG_THREAD_STACK_SIZE  	1028
+#define CAN_DIAG_STORE_SIZE				256
 
 #define CAN_THREAD_STACK_SIZE   		768
 
 #define ALLOC_MEM_SIZE 					15104
 
-#define ALLOC_DEBUG_LVL					0
+#define ALLOC_DEBUG_LVL					5
 #define SD_DEBUG_LVL					0
 #define STORAGE_BASE_DEBUG_LVL			0
-#define CAN_COMM_DEBUG_LVL				5
+#define CAN_COMM_DEBUG_LVL				0
 #define CAN_ITF_DEBUG_LVL				0
+#define CAN_WORKAROUND_LVL				0
 #define COM_HANDLER_DEBUG_LVL			0
-
+#define GPS_DEBUG_LVL					0
+#define SENSOR_LIST_DBG_LVL				0
 
 #endif

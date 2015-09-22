@@ -1,7 +1,8 @@
 
 #include "CANCommon.h"
+#include "Configs.h"
 
-#define __DEBUG__ 5
+#define __DEBUG__ CAN_WORKAROUND_LVL
 #ifndef __MODULE__
 #define __MODULE__ "CANCommon.cpp"
 #endif

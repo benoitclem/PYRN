@@ -1,8 +1,9 @@
 
 
 #include "MySensor.h"
+#include "Configs.h"
 
-#define __DEBUG__ 0
+#define __DEBUG__ SENSOR_LIST_DBG_LVL
 #ifndef __MODULE__
 #define __MODULE__ "MySensor.cpp"
 #endif
@@ -93,8 +94,8 @@ uint8_t MySensors::GetNSensors(void) {
 	return num;
 }
 
-bool MySensors::AddSensor(MySensor *sensor) {	
-	if((num+1)<max){
+bool MySensors::AddSensor(MySensor *sensor) {
+	if((num+1)<=max){
 		*(sensors+num) = sensor;
 		num++;
 		return true;

@@ -2,7 +2,7 @@
 
 #include "GPSSensor.h"
 
-#define __DEBUG__ 5
+#define __DEBUG__ GPS_DEBUG_LVL
 #ifndef __MODULE__
 #define __MODULE__ "GPSSensor.cpp"
 #endif

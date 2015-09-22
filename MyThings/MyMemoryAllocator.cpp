@@ -32,8 +32,9 @@ void MyMemoryAllocator::PrintResume(bool full) {
 	if(full) {
 		DBG("START %p[%d]",pBlock,memorySize);
 		while(pBlock) {
-			sum += pBlock->sz;
-			DBG("%d - %p - %d - %p - %p - %s",i++,pBlock, pBlock->sz, pBlock->prev, pBlock->next, (pBlock->status==FREE)?"FREE":"INUSE"); 
+			//if(pBlock->status == INUSE)
+			sum += pBlock->sz  + sizeof(MemBlock);
+			DBG("%02d - %p - %05d / %05d - %p - %p - %s",i++,pBlock, pBlock->sz, sum, pBlock->prev, pBlock->next, (pBlock->status==FREE)?"FREE":"INUSE"); 
 			pBlock = pBlock->next;
 		}
 		if(sum>memorySize) {
@@ -44,7 +45,8 @@ void MyMemoryAllocator::PrintResume(bool full) {
 		DBG("END");
 	} else {
 		while(pBlock) {
-			sum += pBlock->sz;
+			if(pBlock->status == INUSE)
+				sum += pBlock->sz + sizeof(MemBlock);
 			pBlock = pBlock->next;
 		}
 		DBG("MemoryAllocator status [%05d/%05d]",sum,memorySize);
@@ -111,10 +113,13 @@ void* MyMemoryAllocator::malloc(uint16_t sz) {
 				memAccess.unlock();
 				PrintResume();
 				return (void*)pBlock->data;
+			} else {
+				ERR("Could not allocate int this block");
 			}
 		}
 		pBlock = pBlock->next;
 	}
+	WARN("Could not allocate memory (%d)",sz);
 	memAccess.unlock();
 	PrintResume();
 	return NULL;	
@@ -140,7 +145,6 @@ void MyMemoryAllocator::free(void *p) {
 		}
 		PrintResume();
 		// Look before if we can join
-		DBG("Found Block %p", pBlock);
 		MemBlock *prevBlock = pBlock->prev;
 		if(prevBlock) {
 			if(prevBlock->status == FREE) {

@@ -344,7 +344,7 @@ void MainClass::run(void) {
 	DBG("CAN APP %d",sizeof(int));
 	
 	newCalcPending = false;
-	printThread = false;
+	printThread = true;
 	// Set a wdt with 60s timer
 	MyWatchdog wdt(60);
 
@@ -391,7 +391,7 @@ void MainClass::run(void) {
 
 
 		// 3G (configure the system to return ASAP for the first connection)
-		ComHandler comm(this,"AAAAAAAAAAAAAAA",ComHandler::TT_HALF,sp);
+		ComHandler comm(this,"AAAAAAAAAAAAAAA",ComHandler::TT_HALF,sp,COM_HANDLER_THREAD_STACK_SIZE);
 
 		// CAN 
 		CANInterface canItf;
@@ -399,11 +399,14 @@ void MainClass::run(void) {
 		//CANSniffer canSnif(&canItf);
 
 		// The static list of sensors (GPS/IMU/...)
-		IMUSensor *imu = new IMUSensor(p28,p27);
+		IMUSensor *imu = new IMUSensor(p28,p27,250);
+		DBG("ADD Sensor IMU");
 		staticSensors.AddSensor(imu);
-		GPSSensor *gps = new GPSSensor(p13,p14,4,250);
+		GPSSensor *gps = new GPSSensor(p13,p14,4,1000);
+		DBG("ADD Sensor GPS");
 		staticSensors.AddSensor(gps);
 		
+		/*
 		int dataSz = 0;
 		calcStorage->Read((char*)&dataSz,0,sizeof(int));
 		DBG("CHECK IF CALCULATOR STORED %d",dataSz);
@@ -412,6 +415,7 @@ void MainClass::run(void) {
 			DBG_MEMDUMP("APPLY",dataResult,dataSz);
 			//NewDynSensors(dataResult,dataSz);
 		}
+		*/
 		
 		// Request the first calculators
 #ifdef CAN_SIMULATOR
@@ -470,10 +474,8 @@ void MainClass::run(void) {
 						uint8_t st = s->GetSensorType();
 						time_t seconds = time(NULL);
 						DBG("(%04d) %s(%d) Got %03d chars",seconds,s->GetSensorName(),st,len);
-						if(comm.AddResults(st,dataResult,len)){
-							DBG("Result have been writen");
-
- 						} else {
+						DBG_MEMDUMP("data",dataResult,len);
+						if(!comm.AddResults(st,dataResult,len)){
 							DBG("Result could not be writen");
 						}
 					}
@@ -490,10 +492,9 @@ void MainClass::run(void) {
 							uint8_t st = s->GetSensorType();
 							time_t seconds = time(NULL);
 							DBG("(%04d) %s(%d) Got %03d chars",seconds,s->GetSensorName(),st,len);
-							if(comm.AddResults(st,dataResult,len)){
-								DBG("Result have been writen");
-							} else {
-								DBG("Result could not be writen");
+							DBG_MEMDUMP("data",dataResult,len);
+							if(!comm.AddResults(st,dataResult,len)){
+								ERR("Result could not be writen");
 							}
 							
 						}
@@ -546,7 +547,7 @@ bool MainClass::StopDynSensors() {
 				DBG("%s%d Stop+WaitEnd",s->GetSensorName(),i);
 				s->Stop();
 				DBG("================================");
-				Thread::wait(5000);
+				Thread::wait(3000);
 				DBG("================================");
 				DBG("%s%d Got Stopped",s->GetSensorName(),i);
 				s->WaitEnd();
@@ -578,7 +579,7 @@ bool MainClass::StopDynSensors() {
 void MainClass::NewDynSensors(char *data, int dataSz) {
 	osStatus s = dynSensorAccess.lock(4000);
 	if(s == osOK){
-		DBG("Create New Dynamic Sensors");
+		DBG("NewDynSensors - Create New Dynamic Sensors");
 		uint8_t nCalc = 0;
 		int offset = 0;
 		char *pData = data;
@@ -586,12 +587,12 @@ void MainClass::NewDynSensors(char *data, int dataSz) {
 		CANDiagCalculator *DiagCalc = new CANDiagCalculator();
 		while(1) {
 			inc = DiagCalc->SetData((const char*)pData+offset);
-			DBG_MEMDUMP("CALC DATA", DiagCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
+			DBG_MEMDUMP("NewDynSensors - CALC DATA", DiagCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
 			if(inc) {
-				DBG("Incrementing pointer offset to %d",inc);
+				DBG("NewDynSensors - Incrementing pointer offset to %d",inc);
 				offset += inc;
 			} else {
-				DBG("Calculator data are corrupted ... free memory and abort");
+				DBG("NewDynSensors - Calculator data are corrupted ... free memory and abort");
 				delete(DiagCalc);
 				break;
 			}
@@ -601,50 +602,50 @@ void MainClass::NewDynSensors(char *data, int dataSz) {
 					uint8_t ch = DiagCalc->GetPinH();
 					uint8_t cl = DiagCalc->GetPinL();
 					int bus = c->BusFromPins(ch,cl);
-					DBG("Calculator is ready [%d/%d-%d]",ch,cl,bus);
+					DBG("NewDynSensors - Calculator is ready [%d/%d-%d]",ch,cl,bus);
 					if(bus) {
 							CANCommunicator6A *Diag6A = new CANCommunicator6A(c,bus,DiagCalc);
 							CANDiagSensor6A *DiagSensor6A = new CANDiagSensor6A(DiagCalc,Diag6A);
 							DiagSensor6A->Start();
 							DiagSensor6A->Run();
-							DBG("Adding Sensor %p to dynamic list",DiagSensor6A);
+							DBG("NewDynSensors - Adding Sensor %p to dynamic list",DiagSensor6A);
 							dynamicSensors.AddSensor(DiagSensor6A);
 					} else {
-						DBG("Wrong BUS number (%d-%d-%d)... free memory and abort",ch,cl,bus);
+						DBG("NewDynSensors - Wrong BUS number (%d-%d-%d)... free memory and abort",ch,cl,bus);
 						delete(DiagCalc);
 						break;
 					}
 				} else {
-					DBG("Unknown Calculator DiagCode(0x%02X)",dcode);
+					DBG("NewDynSensors - Unknown Calculator DiagCode(0x%02X)",dcode);
 					delete(DiagCalc);
 				}
 			} else {
-				DBG("Calculator is not ready, something got wrong  ... free memory and abort");
+				DBG("NewDynSensors - Calculator is not ready, something got wrong  ... free memory and abort");
 				delete(DiagCalc);
 				break;
 			}
 			// Check for ending
 			if(offset>=dataSz) {
-				DBG("Successfully instanciate %d sensors",nCalc+1);
+				DBG("NewDynSensors - Successfully instanciate %d sensors",nCalc+1);
 				break;
 			} else {
 				nCalc++;
 			}
 		}
 	} else if(s == osEventTimeout) {
-		DBG("Could not obtain lock to change the ongoing Diagnoses.. data will be dropped");
+		DBG("NewDynSensors - Could not obtain lock to change the ongoing Diagnoses.. data will be dropped");
 	} else {
-		DBG("WHAT %d",s);
+		DBG("NewDynSensors - WHAT %d",s);
 	}
 }
 
 void MainClass::event(int ID, void *data) {
-	DBG("event received");
+	//DBG("event received");
 	int dataSz = ID;
 	char *pData = (char*)data;
 	int err = -1;
 	if(dataSz != 0) {
-		DBG_MEMDUMP("RX DATA", pData, dataSz);
+		//DBG_MEMDUMP("RX DATA", pData, dataSz);
 		DBG("Store new calculator Size(%d)",dataSz);
 		err = calcStorage->Write((char*)&dataSz,0,sizeof(int));
 		if(err == -1) {
@@ -666,7 +667,7 @@ int main(void) {
     debug_set_newline("\r\n");
     debug_set_speed(115200);
     
-    printThread = false;
+    printThread = true;
     
     // Main Function
     MainClass m(2,5);
