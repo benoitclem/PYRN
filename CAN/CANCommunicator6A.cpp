@@ -17,6 +17,7 @@
 
 CANCommunicator6A::CANCommunicator6A(CANInterface *can, uint8_t bus, CANDiagCalculator *c):
 	CANCommunicatorMaster(can,bus,c) {
+	DBG("bus value %d",bus);
 	state = IDLE;
 }
 
@@ -42,6 +43,7 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 		canItf->AddCallBackForId(bus, calc->GetAddrDst(), this);
 		// Multiple lines is not handled for the moment
 		DBG_MEMDUMP("ExecuteCommand - Send CMD",data,len);
+		//DBG("Sending %04x",calc->GetAddrSrc());
 		canItf->Send(bus,calc->GetAddrSrc(),data,len);
 		// If no Response and no timeout and no respLen pointer do nothing
 		if((msTmo != 0) && (response != NULL) && (respLen != NULL)) {

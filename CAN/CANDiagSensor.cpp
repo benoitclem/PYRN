@@ -2,7 +2,7 @@
 
 #include "CANDiagSensor.h"
 
-#define __DEBUG__ 0
+#define __DEBUG__ 5
 #ifndef __MODULE__
 #define __MODULE__ "CANDiagSensorBase.cpp"
 #endif
@@ -47,13 +47,13 @@ void CANDiagSensorBase::KeepAliveStop() {
 }
 
 void CANDiagSensorBase::Loop() {
-	DBG("LoopStart");
+	DBG("LoopStart (%p)",this);
 	DiagStart();
 	KeepAliveStart();
 	DiagSequence();
 	KeepAliveStop();
 	DiagStop();
-	DBG("LoopEnd");
+	DBG("LoopEnd (%p)",this);
 }
 
 // =========== Specific implementation ===========
@@ -107,7 +107,9 @@ void CANDiagSensor6A::DiagSequence(){
 	while(hdrCmd && running) {
 		DBG("[%08x] DiagSequence LOOP", calculator->GetCalcId());
 		// the CMD 
+		DBG("BEFORE THE LOCK %p",this);
 		DiagTxCMD.lock();
+		DBG("AFTER THE LOCK %p",this);
 		ComHandler->ExecuteCommand(hdrCmd->cmd,hdrCmd->size,response,&len, 100);
 		DiagTxCMD.unlock();
 		// the result is recorded

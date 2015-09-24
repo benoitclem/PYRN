@@ -132,16 +132,16 @@ void ComHandler::DoServerRequest(void) {
 		int sz = httpDataIn.getRcvdLen();
 		//DBG("HTTP POST(%d) sz = %d",ret,sz);
 		if (!ret) {
-		//DBG_MEMDUMP("Page",data,sz);
-		// TODO: Do a validation of data before stopping everything
-		if((cb != NULL) && (sz != 0) ) {
-				cb->event(sz,(void*)RXBuff);
-				DBG("Overwrite the current calcs stored in SD");
-			} else{
-				DBG("Callback not found or size is null? (%d)",sz);
-			}
-		//DBG("Page fetched succesfully - read %d characters\n", strlen(data));
-		//DBG("Result: %s\n", data);
+			//DBG_MEMDUMP("Page",data,sz);
+			// TODO: Do a validation of data before stopping everything
+			if((cb != NULL) && (sz != 0) ) {
+					cb->event(sz,(void*)RXBuff);
+					DBG("Overwrite the current calcs stored in SD");
+				} else{
+					DBG("Callback not found or size is null? (%d)",sz);
+				}
+			//DBG("Page fetched succesfully - read %d characters\n", strlen(data));
+			//DBG("Result: %s\n", data);
 		} else {
 			DBG("Error - ret = %d - HTTP return code = %d\n", ret, http.getHTTPResponseCode());
 		}
@@ -178,3 +178,7 @@ void ComHandler::FillHeader() {
 	memcpy(TXBuff,(char*)&hdr,sizeof(frameHdr));
 }
 
+void ComHandler::setIdConfig(char* id) {
+	memcpy(hdr.idCfg,id,40);
+	DBG_MEMDUMP("idCfg",hdr.idCfg,40);
+}

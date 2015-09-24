@@ -61,6 +61,7 @@ public:
 	virtual void DoServerRequest(void);
 	virtual bool AddResults(uint8_t SensorType, char *data, uint16_t len);
 	virtual void FillHeader();
+	virtual void setIdConfig(char* id);
 };
 
 

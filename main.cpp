@@ -38,10 +38,10 @@
 #include "sd.h"
 
 //#define BLINKER
-#define THREAD_MONITOR
+//#define THREAD_MONITOR
 //#define APP_TEST
 //#define APP_CANV10
-#define CAN_SIMULATOR
+//#define CAN_SIMULATOR
 //#define APP_SHARKAN
 //#define APP_STORAGE
 //#define APP_SDSPI
@@ -53,6 +53,8 @@ char dataResult[1024]  __attribute((section("AHBSRAM1")));
 extern MyMemoryAllocator memAlloc;
 
 storage *calcStorage;
+
+ComHandler *com;
 
 CANInterface *c;
 
@@ -348,6 +350,14 @@ void MainClass::run(void) {
 	// Set a wdt with 60s timer
 	MyWatchdog wdt(60);
 
+	/*
+	GPSSensor *gps = new GPSSensor(p13,p14,4,1000);
+	gps->Start();
+	gps->Run();
+
+	while(1) Thread::wait(1);
+	*/
+
 	PyrnUSBModem modem;
 	
 	// Create sd calc access;
@@ -380,18 +390,21 @@ void MainClass::run(void) {
 	} else {
 			
 		wdt.Feed();
+
+		long stackpointer asm ("sp");
+
+		DBG("SP: %d",stackpointer);
 		
 		// NTPClient
 		NTPClient *ntp = new NTPClient();
 		ntp->setTime("0.europe.pool.ntp.org");
 		delete ntp;
 		
-		#define COM_HANDLER_THREAD_STACK_SIZE   3*1024
-		unsigned char *sp = (unsigned char*) memAlloc.malloc(COM_HANDLER_THREAD_STACK_SIZE);
-
-
 		// 3G (configure the system to return ASAP for the first connection)
+		unsigned char *sp = (unsigned char*) memAlloc.malloc(COM_HANDLER_THREAD_STACK_SIZE);
 		ComHandler comm(this,"AAAAAAAAAAAAAAA",ComHandler::TT_HALF,sp,COM_HANDLER_THREAD_STACK_SIZE);
+
+		com = &comm;
 
 		// CAN 
 		CANInterface canItf;
@@ -584,8 +597,8 @@ void MainClass::NewDynSensors(char *data, int dataSz) {
 		int offset = 0;
 		char *pData = data;
 		int inc = 0;
-		CANDiagCalculator *DiagCalc = new CANDiagCalculator();
 		while(1) {
+			CANDiagCalculator *DiagCalc = new CANDiagCalculator();
 			inc = DiagCalc->SetData((const char*)pData+offset);
 			DBG_MEMDUMP("NewDynSensors - CALC DATA", DiagCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
 			if(inc) {
@@ -641,9 +654,11 @@ void MainClass::NewDynSensors(char *data, int dataSz) {
 
 void MainClass::event(int ID, void *data) {
 	//DBG("event received");
-	int dataSz = ID;
+	int dataSz = ID-40;
 	char *pData = (char*)data;
 	int err = -1;
+	com->setIdConfig(pData);
+	pData += 40;
 	if(dataSz != 0) {
 		//DBG_MEMDUMP("RX DATA", pData, dataSz);
 		DBG("Store new calculator Size(%d)",dataSz);
@@ -677,3 +692,58 @@ int main(void) {
     while(1) Thread::wait(1000);
 }
 
+/* 
+DigitalOut output(p6);
+DigitalOut l1(LED1);
+Serial pc(USBTX, USBRX); // tx, rx
+
+int stateHigh = 500;
+int stateLow = 1000;
+
+ 
+void thread(void const *args) {
+    while (1) {
+    	l1 = 1;
+        output = 1;
+        Thread::wait(stateHigh);
+        l1 = 0;
+        output = 0;
+        Thread::wait(stateLow);
+    }
+}
+
+int main() {
+
+	Thread monitor(thread,NULL,osPriorityNormal,512);
+ 
+    while(1) {
+        char c = pc.getc();
+        if((c == 'a') && (stateHigh > 10)) {
+            stateHigh -= 10;
+            stateLow -= 10;
+            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
+        }
+        if(c == 'q') {
+            stateHigh += 10;
+            stateLow += 10;
+            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
+        } 
+        if((c == 'z') && (stateHigh > 10)) {
+            stateHigh -= 10;
+            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
+        }
+        if(c == 's') {
+            stateHigh += 10;
+            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
+        }
+        if((c == 'e') && (stateLow > 10)) {
+            stateLow -= 10;
+            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
+        }
+        if(c == 'd') {
+            stateLow += 10;
+            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
+        } 
+    }
+}
+*/
