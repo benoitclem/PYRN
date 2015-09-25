@@ -17,7 +17,6 @@
 
 CANCommunicator6A::CANCommunicator6A(CANInterface *can, uint8_t bus, CANDiagCalculator *c):
 	CANCommunicatorMaster(can,bus,c) {
-	DBG("bus value %d",bus);
 	state = IDLE;
 }
 

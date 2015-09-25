@@ -1,8 +1,9 @@
 
 
 #include "CANDiagSensor.h"
+#include "Configs.h"
 
-#define __DEBUG__ 5
+#define __DEBUG__ CAN_DIAG_DEBUG_LVL
 #ifndef __MODULE__
 #define __MODULE__ "CANDiagSensorBase.cpp"
 #endif
@@ -107,9 +108,9 @@ void CANDiagSensor6A::DiagSequence(){
 	while(hdrCmd && running) {
 		DBG("[%08x] DiagSequence LOOP", calculator->GetCalcId());
 		// the CMD 
-		DBG("BEFORE THE LOCK %p",this);
+		//DBG("BEFORE THE LOCK %p",this);
 		DiagTxCMD.lock();
-		DBG("AFTER THE LOCK %p",this);
+		//DBG("AFTER THE LOCK %p",this);
 		ComHandler->ExecuteCommand(hdrCmd->cmd,hdrCmd->size,response,&len, 100);
 		DiagTxCMD.unlock();
 		// the result is recorded

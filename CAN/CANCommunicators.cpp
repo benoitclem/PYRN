@@ -12,7 +12,7 @@
 
 CANCommunicatorBase::CANCommunicatorBase(CANInterface *can,uint8_t b, CANDiagCalculator *c) {
 	canItf = can;
-	if(bus) {
+	if(b) {
 		bus = b;
 		// idSrc = idS;
 		// idDest = idD;
@@ -22,7 +22,7 @@ CANCommunicatorBase::CANCommunicatorBase(CANInterface *can,uint8_t b, CANDiagCal
 
 // Use this function to reconfigure the object over the AIR
 void CANCommunicatorBase::Configure(uint8_t b, CANDiagCalculator *c) {
-	if(bus) {
+	if(b) {
 		bus = b;
 		// idSrc = idS;
 		// idDest = idD;
