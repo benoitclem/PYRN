@@ -15,6 +15,8 @@
 static CAN can1(p9, p10) __attribute((section("AHBSRAM1")));
 static CAN can2(p30, p29) __attribute((section("AHBSRAM1")));
 
+DigitalOut led1(LED1);
+DigitalOut led2(LED2);
 DigitalOut led3(LED3);
 DigitalOut led4(LED4);
 
@@ -59,6 +61,8 @@ CANInterface::CANInterface(int CanSpeed1, uint8_t CPH1, uint8_t CPL1, int CanSpe
 	CanPinH2 = CPH2;
 	CanPinL2 = CPL2;
 	
+    led1 = 1;
+    led2 = 1;
     led3 = 1;
     led4 = 1;
 }
@@ -107,12 +111,16 @@ void CANInterface::DelCallBackForId(uint8_t bus, uint32_t id) {
 
 void CANInterface::DispatchCANMessage(uint8_t bus, CANMessage *msg) {
     for(int i = 0; i<nCurrentCbs; i++){
-        CANPrintWorkAround("CANItf TX",bus,msg->id,(char*)msg->data,msg->len);
+#if __DEBUG__ == 5
+        //CANPrintWorkAround("CANItf RX",bus,msg->id,(char*)msg->data,msg->len);
+#endif
 	    // Check if the entry is promiscuous
-	    if(idCbTable[i].id == CAN_ID_PROMISCUOUS_MODE)
+	    if(idCbTable[i].id == CAN_ID_PROMISCUOUS_MODE) {
 	        idCbTable[i].cb->event(CAN_CALLBACK|((bus)<<8),(void*) msg);
-		// Check we the cb is listening on the right bus and id number 
-		if((idCbTable[i].bus == bus) && (idCbTable[i].id == msg->id)) {
+        }
+		// Check we the cb is listening on the right bus and id number
+        //DBG("cbbus = %d ? %d| cbid = %d | msdid = %d",(int8_t)idCbTable[i].bus,CAN_BUS_DONT_CARE,idCbTable[i].id,msg->id);
+		if(((((int8_t)idCbTable[i].bus) == bus)||(((int8_t)idCbTable[i].bus) == CAN_BUS_DONT_CARE)) && (idCbTable[i].id == msg->id)) {
 	        // Becarefull with the pointer passed (/!\ make a cpy in the cb)
 	        idCbTable[i].cb->event(CAN_CALLBACK|((bus)<<8),(void*) msg);
 	        break;    
@@ -122,7 +130,9 @@ void CANInterface::DispatchCANMessage(uint8_t bus, CANMessage *msg) {
 
 int CANInterface::Send(uint8_t bus, uint32_t id, char *data, uint8_t len) {
     if(sendMutex.lock(1000) != osEventTimeout) {
-		CANPrintWorkAround("CANItf TX",bus,id,data,len);
+#if __DEBUG__ == 1
+		//CANPrintWorkAround("CANItf TX",bus,id,data,len);
+#endif
 		//DBG("Sending CAN [%08x]-%02X %02X %02X %02X %02X %02X %02X %02X",id,data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7]);
         int ret = 0;
         // No Padding but could be implemented here or in the upper layers
@@ -131,8 +141,18 @@ int CANInterface::Send(uint8_t bus, uint32_t id, char *data, uint8_t len) {
         memcpy(msgTx.data,data,len);
         // Need to check who is responsible for CANMessage memory management
         if(bus == 1) {
+            if(led1 == 1){
+                led1 = 0;
+            } else {
+                led1 = 1;
+            }
             ret = bus1->write(msgTx);
         } else if(bus == 2) {
+            if(led2 == 1){
+                led2 = 0;
+            } else {
+                led2 = 1;
+            }
             ret = bus2->write(msgTx);
 		} else {
  			DBG("Send: bus %d does not exist",bus);
@@ -177,12 +197,12 @@ void CANInterface::Main(void) {
         //if((i%100) == 1)
         //    DBG("CanInterface Running");
         if((bus1->rderror() != 0) || (bus2->rderror() != 0)) {
-            ERR("Got Hardware rx errors ovf, need reset?");
+            //ERR("Got Hardware rx errors ovf, need reset?");
            // bus1->reset();
            // bus2->reset();
         }
         if( rxOvf ) {
-            ERR("Got Software rx errors ovf, need to extend FIFO!!");
+            //ERR("Got Software rx errors ovf, need to extend FIFO!!");
             rxOvf = false;
         }
 		ProcessMsgFromRxFifo(1);
@@ -190,6 +210,19 @@ void CANInterface::Main(void) {
         Thread::wait(1);
         i++;
     }
+}
+
+void CANInterface::SetFilter(uint8_t bus, uint32_t id) {
+    CAN *c;
+    if(bus == 1) {
+        c = &can1;
+    } else if(bus == 2) {
+        c = &can2;
+    } else {
+        DBG("ACCF: can %d does not exist",bus);
+    }
+    DBG("Setting the Acceptance filtering on can %d with id = %08x", bus, id);
+    c->filter(id, 0x0000ffff, CANStandard);
 }
 
 uint8_t CANInterface::BusFromPins(uint8_t CanH, uint8_t CanL) {

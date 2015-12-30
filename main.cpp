@@ -23,6 +23,10 @@
 #include "CANSniffer.h"
 #include "CANCommunicator6A.h"
 #include "CANDiagSensor.h"
+#include "CANCorrelator.h"
+
+#include "CANRecorder.h"
+#include "CANRecorderCalculator.h"
 
 #include "PyrnUSBModem.h"
 #include "HTTPClient.h"
@@ -30,6 +34,7 @@
 
 #include "NTPClient.h"
 #include "ComHandler.h"
+#include "tcpDataClient.h"
 
 #include "storageBase.h"
 
@@ -45,7 +50,12 @@
 //#define APP_SHARKAN
 //#define APP_STORAGE
 //#define APP_SDSPI
-#define APP_CANONAIR
+//#define APP_CAN_FILTER_TEST_TX
+//#define APP_CAN_FILTER_TEST_RX
+//#define APP_CORRELATOR
+//#define APP_CANONAIR
+//#define APP_CANPLAYER
+#define APP_CANONAIR_V2 // This is the sniffing app (CAN Recorder)
 bool printThread;
 
 bool newCalcPending;
@@ -314,14 +324,28 @@ void MainClass::run(void) {
 
 	CANInterface canItf;
 	c = &canItf;
+	//int32_t calcIds[2] = {0x728,0x720}; 	// Fiesta instrument IPC
+	//int32_t calcIds[2] = {0x7e8,0x7e0};		// Fiesta essence 
+	//int32_t calcIds[2] = {0x743,0x763};		// megane diesel 
+	//int32_t calcIds[2] = {0x7e8,0x7e0};		// megane instruments
+
+	//CANSniffer canSnif(&canItf,calcIds,2);
 	CANSniffer canSnif(&canItf);
 
 	canItf.Start();
 	canItf.Run();
 
 	while(1){
+		Thread::wait(1000);
+	}
+
+	/*
+	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
+	while(1){
+		canItf.Send(2,0X456,dataOne,8);
 		Thread::wait(1000);	
 	}
+	*/
 	canItf.Stop();
 
 #elif defined APP_CANV10
@@ -342,8 +366,402 @@ void MainClass::run(void) {
 	gps->Stop();
 	imu->Stop();
 
+#elif defined APP_CORRELATOR
+
+	DBG("CORRELATOR APP");
+	
+	//printThread = true;
+
+	CANInterface canItf;
+	c = &canItf;
+	//c->SetFilter(1,0x456);
+	c->SetFilter(1,0x476);
+	//CANSniffer canSnif(&canItf);
+	CANCorrelator canBusCorrOne(&canItf,1);
+	//CANCorrelator canBusCorrOne(&canItf,2);
+
+	canItf.Start();
+	canItf.Run();
+
+	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
+	char dataTwo[5] = {0x41,0x42,0x43,0x44,0x45};
+	while(true) {
+		Thread::wait(1000);
+		dataOne[0] -= 3;
+		dataOne[2] += 2;
+		dataOne[3] += 1;
+		dataTwo[4] -= 1; 
+		canItf.Send(2,0X456,dataOne,8);
+		Thread::wait(1000);
+		canItf.Send(2,0X476,dataTwo,5);
+		canBusCorrOne.PrintVariables();
+	}
+
+	canItf.Stop();
+
+#elif defined APP_CAN_FILTER_TEST_TX
+
+	DBG("CAN FILTER TEST APP TX");
+	
+	//printThread = true;
+
+	CANInterface canItf;
+	c = &canItf;
+
+	canItf.Start();
+	canItf.Run();
+
+	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
+	char dataTwo[5] = {0x41,0x42,0x43,0x44,0x45};
+	char dataThree[7] = {0x51,0x52,0x53,0x54,0x55,0x56,0x57};
+	char dataFour[6] = {0x61,0x62,0x63,0x64,0x65,0x66};
+	char dataFive[3] = {0x21,0x22,0x23};
+	char dataSix[2] = {0x11,0x12};
+	while(true) {
+		Thread::wait(100);
+		canItf.Send(2,0x456,dataOne,8);
+		Thread::wait(40);
+		canItf.Send(2,0x476,dataTwo,5);
+		Thread::wait(20);
+		canItf.Send(2,0x534,dataThree,7);
+		canItf.Send(2,0x627,dataFour,6);
+		Thread::wait(60);
+		canItf.Send(2,0x209,dataFive,3);
+		canItf.Send(2,0x2A2,dataSix,2);
+		DBG("RUNNING");
+	}
+
+	canItf.Stop();
+
+
+#elif defined APP_CAN_FILTER_TEST_RX
+
+	DBG("CAN FILTER TEST APP RX");
+	
+	//printThread = true;
+
+	CANInterface canItf;
+	c = &canItf;
+	//c->SetFilter(1,0x456);
+	//c->SetFilter(2,0x476);
+	//c->SetFilter(2,0x627);
+	
+	//c->SetFilter(2,0x209);
+
+	c->SetFilter(2,0x222);
+	c->SetFilter(2,0x2A2);
+	c->SetFilter(2,0x456);
+	c->SetFilter(2,0x627);
+	c->SetFilter(2,0x534);
+
+	
+	
+	//
+	CANSniffer canSnif(&canItf);
+
+	canItf.Start();
+	canItf.Run();
+
+	while(true) {
+		Thread::wait(1000);
+		DBG("RUNNING");
+	}
+
+	canItf.Stop();
+
+#elif defined APP_CANPLAYER
+	DBG("CAN APP PLAYER");
+	CANInterface canItf;
+	c = &canItf;
+
+	canItf.Start();
+	canItf.Run();
+
+	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
+	char dataTwo[5] = {0x41,0x42,0x43,0x44,0x45};
+	while(true) {
+		DBG("Loop");
+		Thread::wait(1000);
+		dataOne[0] -= 3;
+		dataOne[2] += 2;
+		dataOne[3] += 1;
+		dataTwo[4] -= 1; 
+		canItf.Send(2,0X602,dataOne,8);
+		Thread::wait(1000);
+		canItf.Send(2,0X603,dataTwo,5);
+	}
+#elif defined APP_CANONAIR_V2
+	DBG("CAN APP V2");
+
+	// The canonair V2 is basically a sniffer. 
+	// Server can specify which ID is listened
+	// Also he can tell which bytes in frame to 
+	// save
+
+	MyWatchdog wdt(60);
+	PyrnUSBModem modem;
+
+	CANInterface canItf;
+
+
+
+	int connected = modem.connect("a2bouygtel.com","","");
+	//int connected = 0;
+	if(connected != 0) {
+		DBG("Could not connect modem.. Now reset system ");
+		NVIC_SystemReset();
+	} else {
+		wdt.Feed();
+		DBG("Connected");
+		// 3G (configure the system to return ASAP for the first connection)
+		unsigned char *sp = (unsigned char*) memAlloc.malloc(COM_HANDLER_THREAD_STACK_SIZE);
+		tcpDataClient comm(sp,COM_HANDLER_THREAD_STACK_SIZE);
+
+		/*
+		typedef struct _CANRecorderCalculatorHeader {
+			uint8_t		hdrType;
+			uint32_t	idCalc;
+			uint16_t 	speed;
+			uint32_t	rxAddr;
+			uint8_t		pinh;
+			uint8_t		pinl;
+			uint8_t		nChunks;
+			char 		data[];
+		} __attribute__((packed)) CANRecorderCalculatorHeader;
+		*/
+
+		LSM303DLH  Accelerometer(p28,p27);
+		GPSSensor *gps = new GPSSensor(p13,p14,4,1000);
+		gps->Start();
+		gps->Run();
+
+		char recordData[512];
+
+		CANRecorderCalculator *recCalcs[32];
+		CANRecorder *recs[32];
+		uint8_t nMaxRecs = 32;
+		uint8_t currRec = 0;
+
+		char *config = recordData;
+		int l = comm.GetConfig(config,512);
+		DBG_MEMDUMP("config",config,l);
+
+		/*
+		0x10006cfc: 03 08 06 00 00 02 02 02 03 01 bb 05 00 00 01 04 ................
+		0x10006d0c: 02 2e 01 00 00 03 00 01 03 01 04 01             ............  
+		*/
+
+		uint8_t nCalcs = *((uint8_t*)(config));
+		//DBG("NCalcs = %d",nCalcs);
+		int offset = 1;
+		char calcData[128];
+		CANRecorderCalculatorHeader *pCalc = (CANRecorderCalculatorHeader *) calcData;
+		while(offset<l) {
+			if(currRec<nMaxRecs){
+				memset(calcData,0,128);
+				pCalc->hdrType = 2;
+				pCalc->idCalc = 0x0;
+				pCalc->speed = 500;
+				pCalc->rxAddr = *((uint32_t*)(config+offset));
+				offset += 4;
+				pCalc->pinh = 6;
+				pCalc->pinl = 14;
+				pCalc->nChunks = *((uint8_t*)(config+offset));
+				offset += 1;
+				DBG("rxAddr %08x, nChunks %d",pCalc->rxAddr,pCalc->nChunks);
+				for(int c = 0; c <pCalc->nChunks; c++) {
+					pCalc->data[c*2] = *((uint8_t*)(config+offset));
+					pCalc->data[(c*2)+1] = *((uint8_t*)(config+offset+1));
+					offset += 2;
+				}
+
+				recCalcs[currRec] = new CANRecorderCalculator(calcData);
+				recs[currRec] = new CANRecorder(&canItf,recCalcs[currRec]);
+				currRec++;
+			} else {
+				DBG("Reached max recorders");
+				break;
+			}
+		}
+
+		DBG("Got %d calculators allocated",currRec);
+		
+		//CANSniffer canSnif(&canItf);
+		
+		canItf.Start();
+		//comm.Start();
+		
+		canItf.Run();
+		//comm.Run();
+
+		while(1) {
+			char buff[64];
+			memset(recordData,0,512);
+
+			DBG("MainThread Loop");
+			wdt.Feed();
+			Thread::wait(100);
+			uint16_t offset = 0;
+			uint16_t len = 64;
+
+			*((uint8_t*)(recordData+offset)) = 0x01; // This is a frame array
+
+			offset += 1;
+
+			for(uint8_t i = 0; i<currRec; i++) {
+				len = 64;
+				recs[i]->Capture(buff,&len);
+				//DBG_MEMDUMP("capturedData",buff,len);
+				*((uint16_t*)(recordData+offset)) = len;
+				offset += 2;
+				memcpy(recordData+offset,buff,len);
+				offset += len;
+			}
+
+			// IMU SAMPLING
+			float lax,lay,laz,lmx,lmy,lmz;              // Locals
+    		Accelerometer.readAcc(&lax,&lay,&laz);
+    		Accelerometer.readMag(&lmx,&lmy,&lmz);
+    		//DBG("%3.4f %3.4f %3.4f %3.4f %3.4f %3.4f",lax,lay,laz,lmx,lmy,lmz);
+    		// Build a packet with this data
+
+    		// Network Frame Structure is id(4) | dt (2) | n (2) | nChunk(1) | entries (n*2) | data (n)
+    		typedef struct _imuFrame{
+    			uint16_t sz; 	// 2
+    			uint32_t id; 	// 4
+    			uint16_t dt;	// 2
+    			uint16_t n; 	// 2
+    			uint8_t nChunk; // 1
+    			uint8_t startax;	// 1
+    			uint8_t lenax;    // 1
+    			uint8_t startay;	// 1
+    			uint8_t lenay;    // 1
+    			uint8_t startaz;	// 1
+    			uint8_t lenaz;    // 1
+    			uint8_t startmx;	// 1
+    			uint8_t lenmx;    // 1
+    			uint8_t startmy;	// 1
+    			uint8_t lenmy;    // 1
+    			uint8_t startmz;	// 1
+    			uint8_t lenmz;    // 1
+    			float ax;	// 4
+    			float ay;	// 4
+    			float az;	// 4
+    			float mx;	// 4
+    			float my;	// 4
+    			float mz;	// 4
+    		} __attribute__((packed)) imuFrame;
+
+    		imuFrame *f = (imuFrame*) (recordData+offset);
+    		f->sz = sizeof(imuFrame)-2;
+    		f->id = 0xA5A5A5A5;
+    		f->dt = 0;
+    		f->n = 24;
+    		f->nChunk = 6;
+			f->startax = 0;	// 1
+			f->lenax = 4;    // 1
+			f->startay = 1;	// 1
+			f->lenay = 4;    // 1
+			f->startaz = 2;	// 1
+			f->lenaz = 4;   // 1
+			f->startmx = 3;	// 1
+			f->lenmx = 4;    // 1
+			f->startmy = 4;	// 1
+			f->lenmy = 4;    // 1
+			f->startmz = 5;	// 1
+			f->lenmz = 4;    // 1
+    		f->ax = lax;
+    		f->ay = lay;
+    		f->az = laz;
+    		f->mx = lmx;
+    		f->my = lmy;
+    		f->mz = lmz;
+
+    		DBG_MEMDUMP("imuDataFrame",recordData+offset,sizeof(imuFrame));
+
+    		offset+= sizeof(imuFrame);
+
+    		// GPS
+    		GPSSensor::gpsImpact impact;
+    		bool r = gps->GetImpact(&impact);
+    		if(r){
+    			DBG_MEMDUMP("gpsImpact",(char*)&impact,sizeof(GPSSensor::gpsImpact));
+
+    			/*
+    			uint32_t date;
+		        uint32_t time;
+		        int32_t lon;
+		        int32_t lat;
+		        int32_t alt;
+		        uint16_t hdop;
+		        */
+
+	    		typedef struct _gpsFrame{
+	    			uint16_t sz; 	// 2
+	    			uint32_t id; 	// 4
+	    			uint16_t dt;	// 2
+	    			uint16_t n; 	// 2
+	    			uint8_t nChunk; // 1
+
+	    			uint8_t startdate;	// 1
+	    			uint8_t lendate;    // 1
+
+	    			uint8_t starttime;	// 1
+	    			uint8_t lentime;    // 1
+
+	    			uint8_t startlon;	// 1
+	    			uint8_t lenlon;    // 1
+
+	    			uint8_t startlat;	// 1
+	    			uint8_t lenlat;    // 1
+
+	    			uint8_t startalt;	// 1
+	    			uint8_t lenalt;    // 1
+
+	    			uint8_t starthdop;	// 1
+	    			uint8_t lenhdop;    // 1
+	    			GPSSensor::gpsImpact gpsi; // sizeof(GPSSensor::gpsImpact)
+	    		} __attribute__((packed)) gpsFrame;
+
+	    		gpsFrame *f = (gpsFrame*) (recordData+offset);
+	    		f->sz = sizeof(gpsFrame) - 2;
+	    		f->id = 0x5A5A5A5A;
+	    		f->dt = 0;
+	    		f->n = sizeof(GPSSensor::gpsImpact);
+	    		f->nChunk = 6;
+    			f->startdate = 0;	// 1
+    			f->lendate = 4;    // 1
+    			f->starttime = 1;	// 1
+    			f->lentime = 4;    // 1
+    			f->startlon = 2;	// 1
+    			f->lenlon = 4;    // 1
+    			f->startlat = 3;	// 1
+    			f->lenlat = 4;    // 1
+    			f->startalt = 4;	// 1
+    			f->lenalt  = 4;    // 1
+    			f->starthdop = 5;	// 1
+    			f->lenhdop = 2;
+
+	    		memcpy(&(f->gpsi),&impact,sizeof(GPSSensor::gpsImpact));
+
+	    		offset+= sizeof(gpsFrame);
+
+    		} else {
+    			DBG("Could not get gps impact");
+    		}
+
+
+
+    		// GPS Position
+
+			//DBG_MEMDUMP("ALL CAPTURE DATA", recordData, offset);
+
+			comm.SendData(recordData,offset);
+		}	
+	}
+
 #elif defined APP_CANONAIR
-	DBG("CAN APP %d",sizeof(int));
+	DBG("CAN APP");
 	
 	newCalcPending = false;
 	printThread = true;
@@ -431,7 +849,7 @@ void MainClass::run(void) {
 		*/
 		
 		// Request the first calculators
-#ifdef CAN_SIMULATOR
+	#ifdef CAN_SIMULATOR
 		// Diags
 		CANDiagCalculatorHeader SimuHdr;
 		SimuHdr.hdrVer = 1;
@@ -451,7 +869,7 @@ void MainClass::run(void) {
 		uint8_t bus = canItf.BusFromPins(simuCalc->GetPinH(),simuCalc->GetPinL());
 		CANCommunicatorSim6A *Sim6A = new CANCommunicatorSim6A(&canItf,bus,simuCalc);
 		Sim6A->Start();
-#endif
+	#endif
 
 		// Threads
 		imu->Start();
@@ -531,9 +949,9 @@ void MainClass::run(void) {
 		    Thread::wait(1000);
 		}
 
-#ifdef CAN_SIMULATOR
+		#ifdef CAN_SIMULATOR
 		Sim6A->Stop();
-#endif
+		#endif
 
 		imu->Stop();
 		gps->Stop();
@@ -542,10 +960,10 @@ void MainClass::run(void) {
 	}
 #endif
 
-#ifdef BLINKER
+	#ifdef BLINKER
 	br.Stop();
 	bg.Stop();
-#endif
+	#endif
 
 }
 
@@ -555,30 +973,50 @@ bool MainClass::StopDynSensors() {
 		DBG("Stop Dynamic Sensors");
 		int i = 0;
 		while(1) {
-			CANDiagSensor6A *s = (CANDiagSensor6A*) dynamicSensors.PopLastSensor();
+			MySensorBase *sb = (MySensorBase*) dynamicSensors.PopLastSensor();
 			if(s != NULL) {
-				DBG("%s%d Stop+WaitEnd",s->GetSensorName(),i);
-				s->Stop();
-				DBG("================================");
-				Thread::wait(3000);
-				DBG("================================");
-				DBG("%s%d Got Stopped",s->GetSensorName(),i);
-				s->WaitEnd();
-				DBG("%s%d Ended",s->GetSensorName(),i);
-				i++;
+				uint8_t type = sb->GetSensorType();
+				if(type == SENSOR_TYPE_CAN_DIAG) {
+					// This is the CAN Diag Stuffs
+					// Need to stop sensors and wait end
+					CANDiagSensorBase *s = (CANDiagSensorBase*) sb;
+					DBG("%s%d Stop+WaitEnd",s->GetSensorName(),i);
+					s->Stop();
+					DBG("================================");
+					Thread::wait(3000);
+					DBG("================================");
+					DBG("%s%d Got Stopped",s->GetSensorName(),i);
+					s->WaitEnd();
+					DBG("%s%d Ended",s->GetSensorName(),i);
+					i++;
+					// Need to release the n Calculators
+					DBG("There is N DiagCalculator (%d)",s->GetNDiagCalculator());
+					for(int i = 0; i<s->GetNDiagCalculator(); i++) {
+						CANDiagCalculator *calc = s->GetDiagCalculator(i);
+						DBG("|-> Release DiagCalculator (%d)",i);
+						delete(calc);  
+					}
+					// Need to release the Sensor and communicator
+					CANCommunicatorMaster *com = s->GetCommunicator();
+					DBG("Release Sensor");
+					delete(s);
+					DBG("Release ComHandler");
+					delete(com);
+					memAlloc.PrintResume(false);
+				} else if(type == SENSOR_TYPE_CAN_REC){
+					CANRecorder *s = (CANRecorder*) sb;
+					s->DeActivate();
+					Thread::wait(100);
+					CANRecorderCalculator *calc = s->GetCalculator();
+					DBG("Release sensor");
+					delete(s);
+					DBG("Release calculator");
+					delete(calc);
+				}
 			} else {
-				DBG("Dynamic list is empty");
+				DBG("Dynamic list is now empty");
 				break;
 			}
-			CANDiagCalculator *calc = s->GetDiagCalculator();
-			CANCommunicator6A *com = s->GetCommunicator();
-			DBG("Release Sensor");
-			delete(s);
-			DBG("Release ComHandler");
-			delete(com);
-			DBG("Release DiagCalculator");
-			delete(calc);  
-			memAlloc.PrintResume(false);
 		}
 		
 		dynSensorAccess.unlock();
@@ -598,44 +1036,95 @@ void MainClass::NewDynSensors(char *data, int dataSz) {
 		char *pData = data;
 		int inc = 0;
 		while(1) {
-			CANDiagCalculator *DiagCalc = new CANDiagCalculator();
-			inc = DiagCalc->SetData((const char*)pData+offset);
-			DBG_MEMDUMP("NewDynSensors - CALC DATA", DiagCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
-			if(inc) {
-				DBG("NewDynSensors - Incrementing pointer offset to %d",inc);
-				offset += inc;
-			} else {
-				DBG("NewDynSensors - Calculator data are corrupted ... free memory and abort");
-				delete(DiagCalc);
-				break;
-			}
-			if(DiagCalc->Ready()) {
-				uint8_t dcode = DiagCalc->GetDiagCode();
-				if(dcode == 0x6A) {
-					uint8_t ch = DiagCalc->GetPinH();
-					uint8_t cl = DiagCalc->GetPinL();
-					int bus = c->BusFromPins(ch,cl);
-					DBG("NewDynSensors - Calculator is ready [%d/%d-%d]",ch,cl,bus);
-					if(bus) {
-							CANCommunicator6A *Diag6A = new CANCommunicator6A(c,bus,DiagCalc);
-							CANDiagSensor6A *DiagSensor6A = new CANDiagSensor6A(DiagCalc,Diag6A);
-							DiagSensor6A->Start();
-							DiagSensor6A->Run();
-							DBG("NewDynSensors - Adding Sensor %p to dynamic list",DiagSensor6A);
-							dynamicSensors.AddSensor(DiagSensor6A);
+			// In this part we can create DIAGNOSES SENSORS
+			if(*((const char*)(pData+offset)) == CAN_DIAG_HDR_TYPE) {
+				CANDiagCalculator *DiagCalc = new CANDiagCalculator();
+				inc = DiagCalc->SetData((const char*)pData+offset);
+				DBG_MEMDUMP("NewDynSensors - CALC DATA", DiagCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
+				if(inc) {
+					DBG("NewDynSensors - Incrementing pointer offset to %d",inc);
+					offset += inc;
+				} else {
+					DBG("NewDynSensors - Calculator data are corrupted ... free memory and abort");
+					delete(DiagCalc);
+					break;
+				}
+				if(DiagCalc->Ready()) {
+					uint8_t dcode = DiagCalc->GetDiagCode();
+					if((dcode == 0x6A)||(dcode == 0x68)) {
+						uint8_t ch = DiagCalc->GetPinH();
+						uint8_t cl = DiagCalc->GetPinL();
+						int bus = c->BusFromPins(ch,cl);
+						DBG("NewDynSensors - Calculator is ready [%d/%d-%d]",ch,cl,bus);
+						if(bus) {
+							DBG("NewDynSensors - Check the sensors");
+							int nS = dynamicSensors.GetNSensors();
+							int mS = dynamicSensors.GetMaxSensors();
+							if(nS<mS){
+								DBG("NewDynSensors - Can add a sensor");
+								CANCommunicatorMaster *diagBase;
+								CANDiagSensorBase *diagSensorBase;
+								if(dcode == 0x6A){
+									diagBase = new CANCommunicator6A(c,bus,DiagCalc);
+									diagSensorBase = new CANDiagSensor6A(DiagCalc,(CANCommunicator6A*)diagBase);
+								} else if(dcode == 0x68) {
+									diagBase = new CANCommunicator68(c,bus,DiagCalc);
+									diagSensorBase = new CANDiagSensor68(DiagCalc,(CANCommunicator68*)diagBase);
+								}
+								diagSensorBase->Start();
+								diagSensorBase->Run();
+								DBG("NewDynSensors - Adding Sensor %p to dynamic list",diagSensorBase);
+								dynamicSensors.AddSensor(diagSensorBase);
+							} else {
+								bool done = false;
+								DBG("NewDynSensors - Try to add a diag calc to a existing sensor");
+								for(int i = 0; i < mS; i++) {
+									CANDiagSensorBase *s = (CANDiagSensorBase*) dynamicSensors.GetSensor(i);
+									if(s != NULL){
+										int n = s->GetNDiagCalculator();
+										if(n<2) {
+											DBG("NewDynSensors - Adding a diag calc to a existing sensor (%d)(%d)",i,n);
+											s->AddCalculator(DiagCalc,n);
+											done = true;
+											break;
+										}
+									}
+								}
+								if(!done) {
+									DBG("NewDynSensors - Could not add the new sensor");
+									delete(DiagCalc);
+								}
+							}
+						} else {
+							DBG("NewDynSensors - Wrong BUS number (%d-%d-%d)... free memory and abort",ch,cl,bus);
+							delete(DiagCalc);
+							break;
+						}
 					} else {
-						DBG("NewDynSensors - Wrong BUS number (%d-%d-%d)... free memory and abort",ch,cl,bus);
+						DBG("NewDynSensors - Unknown Calculator DiagCode(0x%02X)",dcode);
 						delete(DiagCalc);
-						break;
 					}
 				} else {
-					DBG("NewDynSensors - Unknown Calculator DiagCode(0x%02X)",dcode);
+					DBG("NewDynSensors - Calculator is not ready, something got wrong  ... free memory and abort");
 					delete(DiagCalc);
+					break;
 				}
-			} else {
-				DBG("NewDynSensors - Calculator is not ready, something got wrong  ... free memory and abort");
-				delete(DiagCalc);
-				break;
+			// In this part we create the RECORDER STUFFS
+			} else if(*((const char*)(pData+offset)) == CAN_RECORDER_HDR_TYPE) {
+				CANRecorderCalculator *RecordCalc = new CANRecorderCalculator();
+				inc = RecordCalc->SetData((const char*)pData+offset);
+				DBG_MEMDUMP("NewDynSensors - CALC RECORD DATA", RecordCalc->GetDataPointer(), sizeof(CANDiagCalculatorHeader));
+				if(inc) {
+					DBG("NewDynSensors - Incrementing pointer offset to %d",inc);
+					offset += inc;
+					CANRecorder *RecordSensor = new CANRecorder(c,RecordCalc);
+					dynamicSensors.AddSensor(RecordSensor);
+				} else {
+					DBG("NewDynSensors - Calculator data are corrupted ... free memory and abort");
+					delete(RecordCalc);
+					break;
+				}
+				
 			}
 			// Check for ending
 			if(offset>=dataSz) {
@@ -680,7 +1169,9 @@ int main(void) {
 	set_time(0);
     debug_init();
     debug_set_newline("\r\n");
-    debug_set_speed(115200);
+    debug_set_speed(230400);
+    //debug_set_speed(460800);
+    //debug_set_speed(921600);
     
     printThread = true;
     
@@ -692,58 +1183,4 @@ int main(void) {
     while(1) Thread::wait(1000);
 }
 
-/* 
-DigitalOut output(p6);
-DigitalOut l1(LED1);
-Serial pc(USBTX, USBRX); // tx, rx
 
-int stateHigh = 500;
-int stateLow = 1000;
-
- 
-void thread(void const *args) {
-    while (1) {
-    	l1 = 1;
-        output = 1;
-        Thread::wait(stateHigh);
-        l1 = 0;
-        output = 0;
-        Thread::wait(stateLow);
-    }
-}
-
-int main() {
-
-	Thread monitor(thread,NULL,osPriorityNormal,512);
- 
-    while(1) {
-        char c = pc.getc();
-        if((c == 'a') && (stateHigh > 10)) {
-            stateHigh -= 10;
-            stateLow -= 10;
-            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
-        }
-        if(c == 'q') {
-            stateHigh += 10;
-            stateLow += 10;
-            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
-        } 
-        if((c == 'z') && (stateHigh > 10)) {
-            stateHigh -= 10;
-            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
-        }
-        if(c == 's') {
-            stateHigh += 10;
-            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
-        }
-        if((c == 'e') && (stateLow > 10)) {
-            stateLow -= 10;
-            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
-        }
-        if(c == 'd') {
-            stateLow += 10;
-            pc.printf("values = %d %d\r\n",stateHigh,stateLow);
-        } 
-    }
-}
-*/

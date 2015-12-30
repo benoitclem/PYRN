@@ -9,25 +9,28 @@
 #endif
 #include "MyDebug.h"
 
+MySensorBase::MySensorBase(uint8_t type) {
+    sensorType = type;
+}
+
+uint8_t MySensorBase::GetSensorType() {
+    return sensorType;
+}
+
 MySensor::MySensor(const char* sName, uint8_t type, uint32_t idle, uint32_t sz, unsigned char *sp):
+    MySensorBase(type),
     MyThread(sName,sz,sp){
     // Each Sensor type have its ways to initialize the results structure
     // After this constructor don't forget to call InitResults(), Becarefull the
     // InitResultsStatic must be defined if you call InitResults with sz = -1
-    sensorType = type;
     idleTime = idle;
 }
-
 
 MySensor::~MySensor() {
 }
 
 const char *MySensor::GetSensorName() {
     return tName;
-}
-
-uint8_t MySensor::GetSensorType() {
-    return sensorType;
 }
 
 void MySensor::SetIdleTime(uint32_t idle) {
@@ -84,7 +87,7 @@ void MySensor::Capture(char *data, uint16_t *len) {
 
 
 MySensors::MySensors(uint8_t maxSensors, bool dynamic) {
-	sensors = (MySensor**) malloc (sizeof(MySensor*)*maxSensors);
+	sensors = (MySensorBase**) malloc (sizeof(MySensorBase*)*maxSensors);
 	max = maxSensors;
 	num = 0;
 	dynamic = dynamic;
@@ -94,7 +97,7 @@ uint8_t MySensors::GetNSensors(void) {
 	return num;
 }
 
-bool MySensors::AddSensor(MySensor *sensor) {
+bool MySensors::AddSensor(MySensorBase *sensor) {
 	if((num+1)<=max){
 		*(sensors+num) = sensor;
 		num++;
@@ -103,17 +106,17 @@ bool MySensors::AddSensor(MySensor *sensor) {
 	return false;
 }
 
-MySensor* MySensors::GetSensor(uint8_t index) {
+MySensorBase* MySensors::GetSensor(uint8_t index) {
 	if(index<num){
 		return *(sensors+index);
 	}
 	return NULL;
 }
 
-MySensor* MySensors::PopLastSensor(void) {
+MySensorBase* MySensors::PopLastSensor(void) {
 	if(num){
 		DBG("Poping last sensor from %d",num);
-		MySensor *s = *(sensors+(num-1));
+		MySensorBase *s = *(sensors+(num-1));
 		num--;
 		return s;
 	}

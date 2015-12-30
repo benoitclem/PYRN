@@ -7,13 +7,10 @@
 #include "TinyGPS.h"
 #include "Configs.h"
 
+//#define GPS_STORE_SIZE 32
+
 class GPSSensor: public MySensor {
-protected:
-    TinyGPS gpsParser;
-    enum frameType{
-        GGA = 1,
-        RMC = 2
-    };
+public:
     typedef struct _gpsImpact{
         uint32_t date;
         uint32_t time;
@@ -22,6 +19,12 @@ protected:
         int32_t alt;
         uint16_t hdop;
     }  __attribute__((packed)) gpsImpact;
+protected:
+    TinyGPS gpsParser;
+    enum frameType{
+        GGA = 1,
+        RMC = 2
+    };
     uint8_t recvBuff[GPS_RECV_BUFF];
     uint8_t store[GPS_STORE_SIZE];
     gpsImpact impact;
@@ -35,6 +38,7 @@ public:
     virtual void InitResultsStatic(void);
     virtual void Loop(void);
     virtual void StoreLastImpact(void);
+    virtual bool GetImpact(GPSSensor::gpsImpact *pdata);
     virtual bool NeedImpact(void);
     virtual int GetLine(void);
     virtual void Sample(void);

@@ -1,6 +1,6 @@
 
 #ifndef CAN_COMMUNICATORS
-#define CAN_COMMUNICAT
+#define CAN_COMMUNICATORS
 
 #include "rtos.h"
 #include "MyCallBack.h"

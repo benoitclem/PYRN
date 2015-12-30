@@ -1,12 +1,10 @@
 #include "CANDiagCalculator.h"
 
-#define __DEBUG__ 0
+#define __DEBUG__ 5
 #ifndef __MODULE__
 #define __MODULE__ "CANDiagCalculator.cpp"
 #endif
 #include "MyDebug.h"
-
-#define CAN_DIAG_HDR_VER 		1
 
 extern MyMemoryAllocator memAlloc;
 
@@ -29,8 +27,8 @@ int CANDiagCalculator::Parse(const char* buff) {
 	dataPresence = false;
 	dataValidity = false;
 	
-	DBG("Calculator Parsing - HdrVersion(%d)", buff[0]); 
-	if(buff[0] == CAN_DIAG_HDR_VER) {
+	DBG("Calculator Diag Parsing - HdrType(%d)", buff[0]); 
+	if(buff[0] == CAN_DIAG_HDR_TYPE) {
 
 		memcpy(&calc,buff,sizeof(CANDiagCalculatorHeader));
 		//DBG_MEMDUMP("HdrData",(const char*)&calc,sizeof(CANDiagCalculatorHeader));

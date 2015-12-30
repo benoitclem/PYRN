@@ -54,6 +54,7 @@ public:
 	virtual int  Receive(uint32_t id, char *datan, uint8_t *len);
 	virtual void ProcessMsgFromRxFifo(uint8_t bus);
     virtual void Main();
+    virtual void SetFilter(uint8_t bus, uint32_t id);
     
     virtual uint8_t BusFromPins(uint8_t CanH, uint8_t CanL);
 

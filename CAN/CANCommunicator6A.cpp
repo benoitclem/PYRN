@@ -34,14 +34,14 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 	else
 		return;
 	CANDiagCommandHeader *hdrCmd = NULL;
-	DBG("bus %d - calc %p", bus, calc);
+	//DBG("bus %d - calc %p", bus, calc);
 	if((bus != 0) && (calc != NULL)) {
 		// Flush queue
 		FlushQueue();
 		// Tell we want receive the event now
 		canItf->AddCallBackForId(bus, calc->GetAddrDst(), this);
 		// Multiple lines is not handled for the moment
-		DBG_MEMDUMP("ExecuteCommand - Send CMD",data,len);
+		DBG_MEMDUMP("(6A)ExecuteCommand - Send CMD",data,len);
 		//DBG("Sending %04x",calc->GetAddrSrc());
 		canItf->Send(bus,calc->GetAddrSrc(),data,len);
 		// If no Response and no timeout and no respLen pointer do nothing
@@ -53,11 +53,11 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 				evt = queue.get(msTmo);
 				if(evt.status == osEventMessage) {
 					CANMessage *msg = (CANMessage*) evt.value.p;
-					DBG("ExecuteCommand - Received Response");
+					DBG("(6A)ExecuteCommand - Received Response");
 					switch(state) {
 						case IDLE:
 							if( (msg->data[0] & 0xf0) == 0x00){
-								DBG("ExecuteCommand - Got Short Answer");
+								DBG("(6A)ExecuteCommand - Got Short Answer");
 								// Record the response data
 								*respLen = msg->data[0];
 								memcpy(response,msg->data+1,*respLen);
@@ -68,7 +68,7 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 								*respLen = msg->data[1];
 								memcpy(response,msg->data+2,6);
 								currLen = 6;
-								DBG("ExecuteCommand - Got Extended Answer First Part (%d/%d) => Send Ack",currLen,*respLen);
+								DBG("(6A)ExecuteCommand - Got Extended Answer First Part (%d/%d) => Send Ack",currLen,*respLen);
 								// Get the ACK Command in calculator structure
 								calc->FirstCommand(&hdrCmd,CMD_ACK);
 								if(hdrCmd){
@@ -76,39 +76,39 @@ void CANCommunicator6A::ExecuteCommand(char *data, uint8_t len, char *response, 
 									canItf->Send(bus,calc->GetAddrSrc(),hdrCmd->cmd,hdrCmd->size);
 									state = EXT_CMD;
 								} else {
-									DBG("ExecuteCommand - Could Not Find the ACK");
+									DBG("(6A)ExecuteCommand - Could Not Find the ACK");
 								}
 							} else {
-								DBG("ExecuteCommand - Not handled case");
+								DBG("(6A)ExecuteCommand - Not handled case");
 							}
 						break;
 						case EXT_CMD:
 							if((msg->data[0] & 0xf0) == 0x20){
-								DBG("ExecuteCommand - Got Extended Answer (%d) Parts => Send Ack",msg->data[0] & 0x0f);
+								DBG("(6A)ExecuteCommand - Got Extended Answer (%d) Parts => Send Ack",msg->data[0] & 0x0f);
 								// Record the response data
 								uint8_t payloadSz = ((*respLen-currLen)<7)?(*respLen-currLen):7;						
 								memcpy(response+currLen,msg->data+1,payloadSz);
 								currLen += payloadSz;
 								if(currLen >= *respLen) {
-									DBG("ExecuteCommand - Extended Answer got completed (%d/%d)",currLen,*respLen);
+									DBG("(6A)ExecuteCommand - Extended Answer got completed (%d/%d)",currLen,*respLen);
 									state = IDLE;
 									endCmd = true;
 								}
 							} else {
-								DBG("ExecuteCommand - Wrong Extended frame header ... continue");
+								DBG("(6A)ExecuteCommand - Wrong Extended frame header ... continue");
 							}
 						break;
 					}
 					delete(msg);
 				} else if (evt.status == osEventTimeout) {
 					//PrintActiveThreads();
-					DBG("ExecuteCommand - failed (timeout)");
+					DBG("(6A)ExecuteCommand - failed (timeout)");
 					// Reset state machine and exit rcv loop
 					state = IDLE;
 					endCmd = true;
 					break;
 				} else {
-					DBG("Other type");
+					DBG("(6A)Other type");
 				}
 			}
 		}

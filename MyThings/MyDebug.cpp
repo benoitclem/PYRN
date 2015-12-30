@@ -22,8 +22,12 @@
 #include "mbed.h"
 #include "rtos.h"
 
+#include "us_ticker_api.h"
+
 #include <cstdio>
 #include <cstdarg>
+
+#define REDUCED
 
 using namespace std;
 
@@ -74,6 +78,7 @@ void debug_set_speed(int speed)
 void debug(int level, const char* module, int line, const char* fmt, ...)
 {
   debug_lock(true);
+#if not defined(REDUCED)
   switch(level)
   {
   default:
@@ -90,9 +95,13 @@ void debug(int level, const char* module, int line, const char* fmt, ...)
     printf("[DBG]");
     break;
   }
+#endif
 
-  printf(" Module %s - Line %d: ", module, line);
-
+#if not defined(RECUDED)
+  printf("%10d ", us_ticker_read());
+#else
+  printf("[%10d] Module %s - Line %d: ", us_ticker_read(), module, line);
+#endif
   va_list argp;
 
   va_start(argp, fmt);

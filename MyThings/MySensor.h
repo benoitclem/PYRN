@@ -13,6 +13,8 @@
 #define SENSOR_TYPE_CAN_DIAG	2
 #define SENSOR_NAME_GPS     	"SENSORGPS"
 #define SENSOR_TYPE_GPS     	3
+#define SENSOR_NAME_CAN_REC     "SENSORCANRECORD"
+#define SENSOR_TYPE_CAN_REC     4
 
 #define SENSOR_RESSZ_DEFAULT -1
 
@@ -26,9 +28,20 @@ typedef struct _sensors {
 	uint8_t max;
 } Sensors;
 
-class MySensor:public MyThread {
+// Sensor Interface
+
+class MySensorBase {
 protected:
     uint8_t sensorType;
+public:
+    MySensorBase(uint8_t type = SENSOR_TYPE_NONE);
+    virtual uint8_t GetSensorType();
+    virtual void Capture(char *data, uint16_t *len) = 0;
+};
+
+
+class MySensor:public MySensorBase, public MyThread {
+protected:
     typedef struct _dataResult{
         uint8_t *start;
         uint8_t *current;
@@ -43,7 +56,7 @@ public:
     MySensor(const char* sName = SENSOR_NAME_NONE, uint8_t type = SENSOR_TYPE_NONE, uint32_t idle = 1000, uint32_t sz = DEFAULT_STACK_SIZE, unsigned char * sp = NULL);
     virtual ~MySensor();
     virtual const char *GetSensorName();
-    virtual uint8_t GetSensorType();
+    //virtual uint8_t GetSensorType();
     virtual void SetIdleTime(uint32_t it);
     virtual void Main();
     virtual void InitResults(int16_t size);
@@ -58,16 +71,17 @@ public:
 
 class MySensors {
 protected:
-	MySensor **sensors;
+	MySensorBase **sensors;
 	uint8_t num;
 	uint8_t max;
 	bool    dyn;
 public:
 	MySensors(uint8_t maxSensors, bool dynamic = false);
 	uint8_t GetNSensors(void);
-	bool AddSensor(MySensor *sensor);
-	MySensor* GetSensor(uint8_t index);
-	MySensor* PopLastSensor(void);
+    uint8_t GetMaxSensors(void) {return max;}
+	bool AddSensor(MySensorBase *sensor);
+	MySensorBase* GetSensor(uint8_t index);
+	MySensorBase* PopLastSensor(void);
 };
 
 #endif

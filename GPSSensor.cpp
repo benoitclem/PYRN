@@ -93,6 +93,15 @@ void GPSSensor::StoreLastImpact(void) {
     }
 }
 
+bool GPSSensor::GetImpact(GPSSensor::gpsImpact *pdata) {
+    if(fixed) {
+        memcpy((char*)pdata,(const char*)&impact,sizeof(gpsImpact));
+        DBG_MEMDUMP("data",(char*)pdata,sizeof(gpsImpact));
+        return true;
+    }
+    return false;
+}
+
 bool GPSSensor::NeedImpact(void) {
     time_t now = time(NULL);
     DBG("%ld-%ld = %d > %d ",now,lastImpact,now-lastImpact,trackTime);
@@ -150,7 +159,8 @@ void GPSSensor::Sample(void) {
             if(newData && gpsParser.rmc_ready() && gpsParser.gga_ready()){
                 long lat = 0, lon = 0, hdop = 0;
                 unsigned long date = 0, time = 0;
-                gpsParser.get_position(&lat,&lon);
+                long alt = 0;
+                gpsParser.get_position(&lat,&lon,&alt);
                 gpsParser.get_datetime(&date,&time);
                 hdop = gpsParser.hdop();
                 if((lat != TinyGPS::GPS_INVALID_ANGLE) && (lon != TinyGPS::GPS_INVALID_ANGLE)){
@@ -159,12 +169,13 @@ void GPSSensor::Sample(void) {
                     impact.time = time/100;
                     impact.lat = lat;
                     impact.lon = lon;
+                    impact.alt = alt;
                     if(hdop>0xffff) {
                         impact.hdop = -1;
                     } else {
                         impact.hdop = hdop;
                     }
-                    WARN("######[%ld-%ld][%09ld|%09ld|%04d]######",impact.date,impact.time,impact.lat,impact.lon,impact.hdop);
+                    WARN("######[%ld-%ld][%08x - %09ld|%08x - %09ld|%04d]######",impact.date,impact.time,impact.lat,impact.lat,impact.lon,impact.lon,impact.hdop);
                 } else {
                     fixed = false;
                     DBG("All data have been received but lat/lon does not seems to be valid",date,time,lat,lon,hdop);

@@ -12,9 +12,10 @@
 #define CMD_DIAG_START	4
 
 #define CAN_DIAG_CMD_STORAGE 256
+#define CAN_DIAG_HDR_TYPE 		1
 
 typedef struct _CANDiagCalculatorHeader {
-	uint8_t					hdrVer;
+	uint8_t					hdrType;
 	uint32_t				idCalc;
 	uint8_t 				diagCode;
 	uint16_t 				speed;

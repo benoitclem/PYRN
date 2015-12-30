@@ -1,6 +1,6 @@
 
-#ifndef CAN_COMMUNICATOR_6A
-#define CAN_COMMUNICATOR_6A
+#ifndef CAN_COMMUNICATOR_6A_H
+#define CAN_COMMUNICATOR_6A_H
 
 #include "CANCommunicators.h"
 
@@ -32,4 +32,4 @@ public:
     virtual void event(int ID, void *data);
 };
 
-#endif // CAN_COMUNICATOR_6A
+#endif // CAN_COMUNICATOR_6A_H

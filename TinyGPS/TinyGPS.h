@@ -58,10 +58,11 @@ class TinyGPS
      * @returns longitude is the longitude of the most recent fix that was parsed
      * @returns fix_age is the age of the fix (if available from the NMEA sentences being parsed)
      */
-    inline void get_position(long *latitude, long *longitude, unsigned long *fix_age = 0)
+    inline void get_position(long *latitude, long *longitude, long *altitude, unsigned long *fix_age = 0)
     {
       if (latitude) *latitude = _latitude;
       if (longitude) *longitude = _longitude;
+      if (altitude) *altitude = _altitude;
       if (fix_age) *fix_age = _last_position_fix == GPS_INVALID_FIX_TIME ? 
         GPS_INVALID_AGE : millis() - _last_position_fix;
     }
@@ -117,8 +118,8 @@ class TinyGPS
      */
     inline void f_get_position(double *latitude, double *longitude, unsigned long *fix_age = 0)
     {
-      long lat, lon;
-      get_position(&lat, &lon, fix_age);
+      long lat, lon, alt;
+      get_position(&lat, &lon, &alt,fix_age);
       *latitude = lat / 100000.0;
       *longitude = lon / 100000.0;
     }

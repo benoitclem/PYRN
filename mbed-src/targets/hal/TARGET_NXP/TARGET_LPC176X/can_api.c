@@ -65,6 +65,7 @@ typedef struct CANMsg CANMsg;
 
 static uint32_t can_irq_ids[CAN_NUM] = {0};
 static can_irq_handler irq_handler;
+static uint32_t can_accf_count = 0;
 
 static uint32_t can_disable(can_t *obj) {
     uint32_t sm = obj->dev->MOD;
@@ -82,8 +83,141 @@ int can_mode(can_t *obj, CanMode mode) {
     return 0; // not implemented
 }
 
+int can_unfilter(can_t *obj, uint32_t id, CANFormat format){
+    if(format == CANStandard) {
+        // Acceptance off -> all msg are ignored
+        LPC_CANAF->AFMR = 0x00000001;
+
+        int bound = (can_accf_count - 1) >> 1;
+        int i = 0;
+        while (i <= bound)  {
+            // Test upper part
+            if ((LPC_CANAF_RAM->mask[i] >> 16) == id) {
+                // Disable the entry writing 1 into 28th bit
+                LPC_CANAF_RAM->mask[i] |= (0x1 << 28);
+            }
+            // Test lower part
+            if ((LPC_CANAF_RAM->mask[i] & 0x0000FFFF) == id) {
+                // Disable the entry writing 1 into 12th bit
+                LPC_CANAF_RAM->mask[i] |= (0x1 << 12);
+            }
+            i++;
+        } 
+        // Acceptance on
+        LPC_CANAF->AFMR = 0x00000000;
+    } else {
+        return 0;
+    }
+}
+
+
 int can_filter(can_t *obj, uint32_t id, uint32_t mask, CANFormat format, int32_t handle) {
-    return 0; // not implemented
+
+    int buf0, buf1;
+    // Test Acceptance Filter Memory full 
+    if (((can_accf_count + 1) >> 1) >= 512)
+        return 0;
+
+    if(format == CANStandard) {
+        // Acceptance off -> all msg are ignored
+        LPC_CANAF->AFMR = 0x00000001;
+
+        // Apply the wanted masking
+        id &= mask;
+
+        // Add The SCC Info (SCC = 0 -> CAN1 | SCC = 1 -> CAN2)
+        if((int)obj->dev == CAN_2) {
+            id |= 1 << 13;          // 1 is CAN2
+        }
+
+        // Finally maskout the concerned bytes, This is only 
+        // if we missed up somewhere with id and mask.
+        id &= 0x0000F7FF;
+
+        // Apply the id into RAM
+        int cnt = can_accf_count >> 1;
+        if(can_accf_count == 0) {
+            LPC_CANAF_RAM->mask[0] = 0x0000FFFF | (id << 16);
+        } else if(can_accf_count == 1) {
+            if ((LPC_CANAF_RAM->mask[0] >> 16) == id) {
+                // Renable the filter
+                LPC_CANAF_RAM->mask[0] &= 0xEFFFFFFF;
+            } else if ((LPC_CANAF_RAM->mask[0] >> 16) > id)
+                LPC_CANAF_RAM->mask[0] = (LPC_CANAF_RAM->mask[0] >> 16) | (id << 16);
+            else 
+                LPC_CANAF_RAM->mask[0] = (LPC_CANAF_RAM->mask[0] & 0xFFFF0000) | id;
+        } else {
+                       /* Find where to insert new ID */
+            int cnt1 = 0;
+            int cnt2 = can_accf_count;
+            int bound1 = (can_accf_count - 1) >> 1;
+
+            /* Loop through standard existing IDs */
+            while (cnt1 <= bound1)  {                  
+
+                if ((LPC_CANAF_RAM->mask[cnt1] >> 16) == id) {
+                    // reset disable flag
+                    LPC_CANAF_RAM->mask[cnt1] &= 0xEFFFFFFF;
+                    goto out;
+                } else if ((LPC_CANAF_RAM->mask[cnt1] >> 16) > id)  {
+                    cnt2 = cnt1 * 2;
+                    break;
+                }
+
+                if ((LPC_CANAF_RAM->mask[cnt1] & 0x0000FFFF) == id) {
+                    // reset disable flag
+                    LPC_CANAF_RAM->mask[cnt1] &= 0xFFFFEFFF;
+                    goto out;
+                } else if ((LPC_CANAF_RAM->mask[cnt1] & 0x0000FFFF) > id)  {
+                    cnt2 = cnt1 * 2 + 1;
+                    break;
+                }
+                cnt1++;                                  /* cnt1 = U32 where to insert new ID */
+            }                                          /* cnt2 = U16 where to insert new ID */
+     
+            if (cnt1 > bound1)  {                      /* Adding ID as last entry */
+                if ((can_accf_count & 0x0001) == 0)         /* Even number of IDs exists */
+                    LPC_CANAF_RAM->mask[cnt1]  = 0x0000FFFF | (id << 16);
+                else                                     /* Odd  number of IDs exists */
+                    LPC_CANAF_RAM->mask[cnt1]  = (LPC_CANAF_RAM->mask[cnt1] & 0xFFFF0000) | id;
+            }  else  {
+                buf0 = LPC_CANAF_RAM->mask[cnt1];        /* Remember current entry */
+                if ((cnt2 & 0x0001) == 0)                /* Insert new mask to even address */
+                    buf1 = (id << 16) | (buf0 >> 16);
+                else                                     /* Insert new mask to odd  address */
+                    buf1 = (buf0 & 0xFFFF0000) | id;
+     
+                LPC_CANAF_RAM->mask[cnt1] = buf1;        /* Insert mask */
+     
+                bound1 = can_accf_count >> 1;
+                /* Move all remaining standard mask entries one place up */
+                while (cnt1 < bound1)  {
+                    cnt1++;
+                    buf1  = LPC_CANAF_RAM->mask[cnt1];
+                    LPC_CANAF_RAM->mask[cnt1] = (buf1 >> 16) | (buf0 << 16);
+                    buf0  = buf1;
+                }
+            }
+            if ((can_accf_count & 0x0001) == 0)         /* Even number of IDs exists */
+                LPC_CANAF_RAM->mask[cnt1] = (LPC_CANAF_RAM->mask[cnt1] & 0xFFFF0000) | (0x0000FFFF);
+        }
+        can_accf_count++;
+
+        // Compute the acceptance filter pointers
+        int buf0 = ((can_accf_count >> 1) + 1 ) << 2;
+        int buf1 = buf0;
+ 
+        // Setup acceptance filter pointers
+        LPC_CANAF->SFF_sa     = 0;
+        LPC_CANAF->SFF_GRP_sa = buf0;
+        LPC_CANAF->EFF_sa     = buf0;
+        LPC_CANAF->EFF_GRP_sa = buf1;
+        LPC_CANAF->ENDofTable = buf1;
+out:
+        // Acceptance on
+        LPC_CANAF->AFMR = 0x00000000;
+    } else
+        return 0; // not implemented for CAN extended
 }
 
 static inline void can_irq(uint32_t icr, uint32_t index) {
