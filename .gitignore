@@ -403,3 +403,5 @@ mbed-src/targets/hal/TARGET_NXP/TARGET_LPC176X/us_ticker.d
 mbed-src/targets/hal/TARGET_NXP/TARGET_LPC176X/us_ticker.o
 sd.d
 sd.o
+tools/canLivePlotter.py
+.DS_Store
