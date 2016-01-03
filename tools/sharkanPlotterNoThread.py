@@ -13,7 +13,7 @@ NONE 	 = 0x00
 REVERSED = 0x01
 TWOCOMPL = 0x02
 
-NPTSMAX  = 100
+NPTSMAX  = 1000
 NCOLMAX	 = 3
 
 def currMs():
@@ -107,7 +107,10 @@ class CanParser:
 		return results
 
 	def convertData(self,bytes,converter = 0x00):
+		
+		l = len(bytes)
 		s = ""
+
 		# REVERSING BYTES
 		if converter & REVERSED:
 			bytes = list(reversed(bytes))
@@ -120,6 +123,8 @@ class CanParser:
 		if converter & TWOCOMPL:
 			# TODO: Create 2's complement
 			s = int(s,16)
+			if s > (((2**(l*8))-1)/2):
+				s -= (1<<((l*8)-1))
 		else:
 			s = int(s,16)
 
@@ -146,33 +151,36 @@ class CanParser:
 			indexPlot = 0
 			for values in self.data[key]["r"]:
 				if len(values):
-					ax = self.data[key]["v"][(indexPlot*3)+0]
-					line = self.data[key]["v"][(indexPlot*3)+1]
-					manager = self.data[key]["v"][(indexPlot*3)+2]
+					ax = self.data[key]["v"][(indexPlot*2)+0]
+					line = self.data[key]["v"][(indexPlot*2)+1]
+					
+					if(len(values) > NPTSMAX):
+						values = values[-NPTSMAX:]
 
-					#print(values)
 					CurrentXAxis = pylab.arange(0,len(values),1)
 					#print(len(CurrentXAxis),len(values))
 				  	line[0].set_data(CurrentXAxis,pylab.array(values))
-				  	ax.axis([CurrentXAxis.min(),CurrentXAxis.max(),0,20000])
 				  	indexPlot += 1
 
 	def run(self,arg):
-		changed = False
+		changed = 0
 		#print("PARSER: RUN")
+		#print(self.q.qsize())
 		try:
-			line = self.q.get(0)
-			if(len(line) != 0):
-				result = self.canDbgParse(line)
-				changed = self.storeResults(result)
+			while True:
+				line = self.q.get(0)
+				if(len(line) != 0):
+					result = self.canDbgParse(line)
+					if self.storeResults(result):
+						changed +=1
 		except Queue.Empty:
-			changed = False
 			pass
 
 		if changed:
 			#print("CHANGED")
 			self.plotData()
 			#measureTime(self.plotData,'plot')
+
 
 def initData(data):
 	graphCount = 0
@@ -183,7 +191,7 @@ def initData(data):
 		data[key]["r"] = []
 		for st,le,co in data[key]["c"]:
 			print(key,st,le,co)
-			data[key]["r"].append([])
+			data[key]["r"].append([0]*NPTSMAX)
 			graphCount += 1
 	print("============================")
 	return graphCount
@@ -206,15 +214,20 @@ def initVisu(data,graphCount):
 			ax = fig.add_subplot(subGraph)
 			ax.grid(True)
 			ax.set_title("%s - %d"%(key,st))
+			mini = 0
+			maxi = 2**(8*le)
+			if co & TWOCOMPL:
+				maxi = maxi >> 1
+				mini = -maxi
+			print(maxi,mini)
+			ax.axis([0,NPTSMAX,mini,maxi])
 			data[key]["v"].append(ax)
 			# linespace
 			xAchse=pylab.arange(0,NPTSMAX,1)
 			yAchse=pylab.array([0]*NPTSMAX)
 			line=ax.plot(xAchse,yAchse,'-')
 			data[key]["v"].append(line)
-			# manager
-			manager = pylab.get_current_fig_manager()
-			data[key]["v"].append(manager)
+
 			currGraph += 1
 	return fig
 
@@ -224,8 +237,6 @@ def commiter(arg):
 	manager.canvas.draw()
 
 def main():
-
-
 	isFile = True
 	if isFile:
 		path = "/Users/clemi/Work/canonair/mbed/Captures/PeugeotIdle-new.txt"
@@ -235,7 +246,8 @@ def main():
 		speed = 230400
 	dataQueue = Queue.Queue()
 
-	data = {"305":{"c":[(0,1,NONE),(1,1,NONE),(2,1,REVERSED)]},"208":{"c":[(4,2,TWOCOMPL)]}}
+	#data = {"305":{"c":[(0,1,NONE),(1,1,NONE),(2,1,REVERSED)]},"208":{"c":[(4,2,TWOCOMPL)]}}
+	data = {"305":{"c":[(0,1,NONE),(1,1,NONE),(2,1,TWOCOMPL)]}}
 	gc = initData(data)
 	fig = initVisu(data,gc)
 	manager = pylab.get_current_fig_manager()
@@ -245,13 +257,13 @@ def main():
 	reader = SerialReader(dataQueue,path,speed)
 	cParsr = CanParser(dataQueue,data)
 
-	readerTimer = fig.canvas.new_timer(interval=2)
+	readerTimer = fig.canvas.new_timer(interval=0.01)
 	readerTimer.add_callback(reader.run, ())
 	
 	parserTimer = fig.canvas.new_timer(interval=2)
 	parserTimer.add_callback(cParsr.run, ())
 
-	commitTimer = fig.canvas.new_timer(interval= 500)
+	commitTimer = fig.canvas.new_timer(interval= 1000)
 	commitTimer.add_callback(commiter,(manager))
 	
 	readerTimer.start()
