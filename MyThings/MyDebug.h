@@ -12,6 +12,7 @@ void debug_set_newline(const char* newline);
 void debug_set_speed(int speed);
 void debug_error(const char* module, int line, int ret);
 void debug_exact(const char* fmt, ...);
+bool debug_read(char *c);
 void debug_memdump(int level, const char* module, int line, const char* msg, const char* addr, int len);
 
 #define DBG_INIT() do{ debug_init(); }while(0)

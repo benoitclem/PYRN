@@ -13,7 +13,7 @@
 #define IMU_THREAD_STACK_SIZE   		576
 #define IMU_STORE_SIZE      			256
 
-#define CAN_DIAG_THREAD_STACK_SIZE  	1028
+#define CAN_DIAG_THREAD_STACK_SIZE  	1024
 #define CAN_DIAG_STORE_SIZE				256
 
 #define CAN_THREAD_STACK_SIZE   		768
@@ -23,13 +23,14 @@
 #define ALLOC_DEBUG_LVL					0
 #define SD_DEBUG_LVL					0
 #define STORAGE_BASE_DEBUG_LVL			0
-#define CAN_COMM_DEBUG_LVL				5
+#define CAN_COMM_DEBUG_LVL				0
 #define CAN_ITF_DEBUG_LVL				5
 #define CAN_WORKAROUND_LVL				5
-#define CAN_DIAG_DEBUG_LVL				5
+#define CAN_DIAG_DEBUG_LVL				0
 #define COM_HANDLER_DEBUG_LVL			5
-#define GPS_DEBUG_LVL					5
+#define GPS_DEBUG_LVL					0
 #define SENSOR_LIST_DBG_LVL				0
-#define CAN_CORRELATOR_DBG_LVL			5
+#define CAN_CORRELATOR_DBG_LVL			0
+#define CAN_VARIATION_DETECTOR_DBG_LVL	5
 
 #endif

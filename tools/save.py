@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
+import pylab
+from pylab import *
 from serial import Serial
-from threading import Thread
-from time import sleep
 import Queue
 import time
 import sys
 import select
 import math
+from threading import Timer
 
 NONE 	 = 0x00
 REVERSED = 0x01
@@ -46,7 +47,7 @@ class EnhancedSerial(Serial):
 			tries += 1
 			if tries * self.timeout > timeout:
 				break
-		line, self.buf = '', ''
+		line, self.buf = self.buf, ''
 		return line
 
 	def readlines(self, sizehint=None, timeout=1):
@@ -61,10 +62,8 @@ class EnhancedSerial(Serial):
 				break
 		return lines
 
-class SerialReader(Thread):
+class SerialReader:
 	def __init__(self,queue,path,speed = None ):
-		Thread.__init__(self)
-		self.running = True
 		#print("sr: init")
 		self.q = queue
 		if (path[0:8] == "/dev/tty") and (speed != None):
@@ -74,27 +73,17 @@ class SerialReader(Thread):
 			print("Data Source is File %s" %path)
 			self.dataSource = open(path,'r')
 
-	def stop(self):
-		self.running = False
-
-	def run(self):
-		while(self.running):
-			#print("READER: RUN")
-			count = 0
-			v = self.dataSource.readline()
-			self.q.put(v) 
-			sleep(0.001)
+	def run(self,arg):
+		#print("READER: RUN")
+		count = 0
+		v = self.dataSource.readline()
+		self.q.put(v) 
 		
 
-class CanParser(Thread):
+class CanParser:
 	def __init__(self, queue, data):
-		Thread.__init__(self)
 		self.q = queue
 		self.data = data
-		self.running = True
-
-	def stop(self):
-		self.running = False
 
 	def canDbgParse(self,line):
 
@@ -145,29 +134,58 @@ class CanParser(Thread):
 		#print("Entered ",bytes,"whith converter %d " %converter, " got out", s)
 		return s
 
-	def printResults(self, result):
+	def storeResults(self, result):
 		addr = result[0]
 		dataLen = result[1]
 		dataRes = result[2]
+		changed = False
 		#print(addr,dataLen,dataRes)
 		if addr in self.data.keys():
+			changed = True
+			i = 0
 			for tup in self.data[addr]["c"]:
 				convertedData = self.convertData(dataRes[tup[0]:tup[0]+tup[1]],tup[2])
-				print convertedData
+				#print convertedData
+				self.data[addr]["r"][i].append(convertedData)
+				i += 1
+		return changed
 
-	def run(self):
-		while(self.running):
-			#print("PARSER: RUN")
-			#print(self.q.qsize())
-			try:
-				while True:
-					line = self.q.get(0)
-					if(len(line) != 0):
-						result = self.canDbgParse(line)
-						self.printResults(result)
-			except Queue.Empty:
-				pass
-			sleep(0.001)
+	def plotData(self):
+		keys = self.data.keys()
+		for key in keys:
+			indexPlot = 0
+			for values in self.data[key]["r"]:
+				if len(values):
+					ax = self.data[key]["v"][(indexPlot*2)+0]
+					line = self.data[key]["v"][(indexPlot*2)+1]
+					
+					if(len(values) > NPTSMAX):
+						values = values[-NPTSMAX:]
+
+					CurrentXAxis = pylab.arange(0,len(values),1)
+					#print(len(CurrentXAxis),len(values))
+					ax.axis([0,NPTSMAX,min(pylab.array(values)),max(pylab.array(values))])
+				  	line[0].set_data(CurrentXAxis,pylab.array(values))
+				  	indexPlot += 1
+
+	def run(self,arg):
+		changed = 0
+		#print("PARSER: RUN")
+		#print(self.q.qsize())
+		try:
+			while True:
+				line = self.q.get(0)
+				if(len(line) != 0):
+					result = self.canDbgParse(line)
+					if self.storeResults(result):
+						changed +=1
+		except Queue.Empty:
+			pass
+
+		if changed:
+			#print("CHANGED")
+			self.plotData()
+			#measureTime(self.plotData,'plot')
 
 
 def initData(data):
@@ -183,11 +201,51 @@ def initData(data):
 			graphCount += 1
 	print("============================")
 	return graphCount
+	
+
+def initVisu(data,graphCount):
+	currGraph = 1
+	fig = pylab.figure(1)
+	for key in data.keys():
+		# visualisation
+		data[key]["v"] = []
+		for st,le,co in data[key]["c"]:
+			# subplot line col index
+			nlines = int(math.ceil(float(graphCount) / float(NCOLMAX)))
+			subGraph = nlines * 100
+			subGraph += NCOLMAX * 10
+			subGraph += currGraph
+			#print(subGraph)
+			# ax
+			ax = fig.add_subplot(subGraph)
+			ax.grid(True)
+			ax.set_title("%s - %d"%(key,st))
+			mini = 0
+			maxi = 2**(8*le)
+			if co & TWOCOMPL:
+				maxi = maxi >> 1
+				mini = -maxi
+			print(maxi,mini)
+			ax.axis([0,NPTSMAX,mini,maxi])
+			data[key]["v"].append(ax)
+			# linespace
+			xAchse=pylab.arange(0,NPTSMAX,1)
+			yAchse=pylab.array([0]*NPTSMAX)
+			line=ax.plot(xAchse,yAchse,'-')
+			data[key]["v"].append(line)
+
+			currGraph += 1
+	return fig
+
+def commiter(arg):
+	#print(arg)
+	manager = arg;
+	manager.canvas.draw()
 
 def main():
-	isFile = False
+	isFile = True
 	if isFile:
-		path = "/Users/clemi/Work/canonair/mbed/Captures/PeugeotIdle-new.txt"
+		path = "/Users/clemi/Work/canonair/mbed/Captures/Capt40.txt"
 		speed = None
 	else:
 		path = "/dev/tty.usbmodem1412"
@@ -197,21 +255,31 @@ def main():
 	#data = {"305":{"c":[(0,1,NONE),(1,1,NONE),(2,1,REVERSED)]},"208":{"c":[(4,2,TWOCOMPL)]}}
 	#data = {"305":{"c":[(0,1,NONE),(1,1,NONE),(2,1,TWOCOMPL)]}}
 	data = {"208":{"c":[(0,2,NONE)]},"3cd":{"c":[(5,2,NONE)]}}
-	initData(data)
+	gc = initData(data)
+	fig = initVisu(data,gc)
+	manager = pylab.get_current_fig_manager()
+
+	#print(data)
 
 	reader = SerialReader(dataQueue,path,speed)
 	cParsr = CanParser(dataQueue,data)
 
-	reader.start()
-	cParsr.start()
+	readerTimer = fig.canvas.new_timer(interval=10)
+	readerTimer.add_callback(reader.run, ())
+	
+	parserTimer = fig.canvas.new_timer(interval=10)
+	parserTimer.add_callback(cParsr.run, ())
 
-	while True:
-		if select.select([sys.stdin,],[],[],0.0)[0]:
-			break
-		sleep(1)
+	commitTimer = fig.canvas.new_timer(interval= 1000)
+	commitTimer.add_callback(commiter,(manager))
+	
+	readerTimer.start()
+	parserTimer.start()
+	commitTimer.start()
 
-	reader.stop()
-	cParsr.stop()
+	pylab.show()
+	
+
 
 if __name__ == '__main__':
 	main()

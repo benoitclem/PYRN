@@ -36,7 +36,7 @@ public:
 	char* GetDataPointer() {return (char*)&calc;};
 	int Parse(const char *buff);
 	bool Validate(void);
-	bool Ready(void);
+	bool Ready(void) {return dataValidity;};
 	CANRecorderData *GetRecordEntry(uint8_t index);
 	uint32_t GetCalcId() {return calc.idCalc;};
 	uint16_t GetSpeed() {return calc.speed;};

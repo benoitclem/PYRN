@@ -1,0 +1,93 @@
+#! /usr/bin/python
+#coding: utf-8
+
+import sys
+import json
+import random
+import signal
+from time import sleep
+from struct import *
+from math import sin
+
+def signal_handler(signal, frame):
+    print 'You pressed Ctrl+C!'
+    sys.exit(0)
+ 
+signal.signal(signal.SIGINT, signal_handler)
+
+print 'Number of arguments:', len(sys.argv), 'arguments.'
+print 'Argument List:', str(sys.argv)
+
+dt = 1.0
+path = None
+if len(sys.argv) >= 3:
+    dt = float(sys.argv[1])
+    path = sys.argv[2]
+    print("Argment dt : %d" %dt)
+    print("Argument path : %s" %path)
+else:
+    print("no time argument take dt :")
+
+if path == None:
+    print("No File Path")
+    sys.exit(0)
+
+while True:
+    print("==== Restart ====")
+    # Open config File
+    confFile = open("config",'r')
+    calcs = json.loads(confFile.read())
+    confFile.close()
+    print(calcs)
+
+    addrs = []
+    for calc in calcs:
+        addrs.append("{:02x}".format(calc["rxAdd"]))
+    print(addrs)
+
+    # Open data File
+    dataFile = open(path,'r')
+    datas = dataFile.read()
+    dataFile.close()
+
+    datas = datas.split("\n")
+
+    jDic = []
+    filedAddr = []
+
+    for data in datas:
+        cl = data.strip().split("|")
+        addr = cl[1]
+        dataLen = cl[2]
+        data = cl[3].split(" ")
+        
+        if addr in addrs:
+            #print(addr,dataLen,data)
+            if addr not in filedAddr:
+                index = addrs.index(addr)
+                chunks = calcs[index]["chunks"]
+                #print(int(addrs[index],16))
+                fDic = {"addr":int(addrs[index],16)}
+                fDic["chunks"] = chunks
+                fDic["datas"] = []
+                for st,le in chunks:
+                    val = ""
+                    for d in data[st:st+le]:
+                        val += d
+                    fDic["datas"].append([val])
+                #print fDic
+                filedAddr.append(addrs[index])
+                jDic.append(fDic)
+
+        #print(len(calcs),len(jDic))
+        if len(jDic)>=8:
+            
+            jData = json.dumps(jDic)
+            f = open('workfile', 'w')
+            f.write(jData)
+            f.close()
+
+            filedAddr = []
+            jDic = []
+
+        sleep(dt)

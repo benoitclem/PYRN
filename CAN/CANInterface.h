@@ -9,7 +9,7 @@
 
 #define CAN_ID_PROMISCUOUS_MODE 0xffffffff      
 
-#define CAN_SIMULTANEOUS_CBS    8
+#define CAN_SIMULTANEOUS_CBS    10
 #define CAN_SIMULTANEOUS_MSG    15
 
 #define CAN_BUS_1				1

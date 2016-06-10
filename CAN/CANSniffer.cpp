@@ -14,6 +14,7 @@
 CANSniffer::CANSniffer(CANInterface *itf, int32_t *lId, uint16_t len){
     if(itf) {
         canItf = itf;	
+        waitingId = 0;
 		// You can pass a list of Sniffer IDs (his is a way to do a software filter)
 		if(lId == NULL)
         	itf->AddCallBackForId(CAN_BUS_DONT_CARE, CAN_ID_PROMISCUOUS_MODE, this);
@@ -24,6 +25,16 @@ CANSniffer::CANSniffer(CANInterface *itf, int32_t *lId, uint16_t len){
 			}		
 		}
     }
+}
+
+bool CANSniffer::wait(uint32_t id, int32_t timeout) {
+    // Apply the waiting ID
+    waitingId = id;
+    osEvent evt = Signal.get(timeout);
+    bool validate = (evt.status == osEventMessage);
+    // Reset the waiting ID
+    waitingId = 0;
+    return validate;
 }
 
 void CANSniffer::event(int ID, void *data) {
@@ -38,5 +49,11 @@ void CANSniffer::event(int ID, void *data) {
         char *data = (char*)msg->data;
 		CANPrintWorkAround("SNIFFER RX",bus,id,data,msg->len);        
 		//DBG("Received CAN [%08x]-%02X %02X %02X %02X %02X %02X %02X %02X",id,data[0],data[1],data[2],data[3],data[4],data[5],data[6],data[7]);
+        // Handle the test id stuffs
+        if(waitingId != 0) {
+            if (waitingId == (uint32_t) id) {
+                Signal.put(dummy);
+            }
+        }
     }
 }

@@ -135,6 +135,17 @@ void debug_exact(const char* fmt, ...)
   debug_lock(false);
 }
 
+bool debug_read(char *c){
+  bool gotSomething = false;
+  debug_lock(true);
+  if(debug_pc.readable()) {
+    *c = debug_pc.getc();
+    gotSomething = true;
+  }
+  debug_lock(false);
+  return gotSomething;
+}
+
 #ifndef HEXDUMP_COLS
 #define HEXDUMP_COLS 16
 #endif

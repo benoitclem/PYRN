@@ -197,15 +197,19 @@ class TinyGPS
      */
     inline bool gsv_ready() { return _gsv_ready; }
     
+    /** determine if GLL sentence parsed since last reset_ready()
+     */
+    inline bool gll_ready() { return _gll_ready; }
+    
     /** Reset the ready flags for all the parsed sentences
      */
-    inline void reset_ready() { _gsv_ready = _rmc_ready = _gga_ready = false; }
+    inline void reset_ready() { _gll_ready = _gsv_ready = _rmc_ready = _gga_ready = false; }
 
     enum {GPS_INVALID_AGE = 0xFFFFFFFF, GPS_INVALID_ANGLE = 999999999, GPS_INVALID_ALTITUDE = 999999999, GPS_INVALID_DATE = 0,
       GPS_INVALID_TIME = 0xFFFFFFFF, GPS_INVALID_SPEED = 999999999, GPS_INVALID_FIX_TIME = 0xFFFFFFFF};
 
 private:
-    enum {_GPS_SENTENCE_GPGGA, _GPS_SENTENCE_GPRMC, _GPS_SENTENCE_GPGSV, _GPS_SENTENCE_OTHER};
+    enum {_GPS_SENTENCE_GPGLL,_GPS_SENTENCE_GPGGA, _GPS_SENTENCE_GPRMC, _GPS_SENTENCE_GPGSV, _GPS_SENTENCE_OTHER};
     
     // properties
     unsigned long _time, _new_time;
@@ -231,6 +235,7 @@ private:
     bool _rmc_ready;
     bool _gga_ready;
     bool _gsv_ready;
+    bool _gll_ready;
 
 #ifndef _GPS_NO_STATS
     // statistics

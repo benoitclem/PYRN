@@ -33,6 +33,7 @@
 #include "MyDebug.h"
 
 #define _GPRMC_TERM   "GPRMC"
+#define _GPGLL_TERM   "GPGLL"
 #define _GPGGA_TERM   "GPGGA"
 #define _GPGSV_TERM   "GPGSV"
 
@@ -54,6 +55,7 @@ TinyGPS::TinyGPS()
 ,  _term_number(0)
 ,  _term_offset(0)
 ,  _gps_data_good(false)
+,  _gll_ready(false)
 ,  _rmc_ready(false)
 ,  _gga_ready(false)
 ,  _gsv_ready(false)
@@ -192,6 +194,16 @@ bool TinyGPS::term_complete()
 
         switch(_sentence_type)
         {
+        case _GPS_SENTENCE_GPGLL:
+          _time      = _new_time;
+          _date      = _new_date;
+          _latitude  = _new_latitude;
+          _longitude = _new_longitude;
+          _speed     = _new_speed;
+          _course    = _new_course;
+          _gll_ready = true;
+          DBG("YEAH GPGLL");
+          break;
         case _GPS_SENTENCE_GPRMC:
           _time      = _new_time;
           _date      = _new_date;
@@ -209,7 +221,7 @@ bool TinyGPS::term_complete()
           _gga_ready = true;
           _hdop      = _new_hdop;
           _sat_count = _new_sat_count;
-          DBG("YEAH GPGGA");
+          break;
         case _GPS_SENTENCE_GPGSV:
           _gsv_ready = true;
           break;
@@ -229,8 +241,11 @@ bool TinyGPS::term_complete()
   // the first term determines the sentence type
   if (_term_number == 0)
   {
+
     if (!gpsstrcmp(_term, _GPRMC_TERM))
       _sentence_type = _GPS_SENTENCE_GPRMC;
+    else if (!gpsstrcmp(_term, _GPGLL_TERM))
+      _sentence_type = _GPS_SENTENCE_GPGLL;
     else if (!gpsstrcmp(_term, _GPGGA_TERM))
       _sentence_type = _GPS_SENTENCE_GPGGA;
     else if (!gpsstrcmp(_term, _GPGSV_TERM))
@@ -239,60 +254,78 @@ bool TinyGPS::term_complete()
       _sentence_type = _GPS_SENTENCE_OTHER;
     return false;
   }
+  /*$GPRMC,215955.00,A,4847.95160,N,00222.09606,E,0.092,,180516,,,A*70*/
+  /*$GPGGA,215955.00,4847.95160,N,00222.09606,E,1,08,1.10,101.4,M,46.2,0*/
+  /*$GPGLL,4847.95155,N,00222.09595,E,215954.00,A,A*67*/
 
-  if (_sentence_type != _GPS_SENTENCE_OTHER && _term[0])
-  switch((_sentence_type == _GPS_SENTENCE_GPGGA ? 200 : 100) + _term_number)
-  {
-    case 101: // Time in both sentences
-    case 201:
-      _new_time = parse_decimal();
-      _new_time_fix = millis();
-      break;
-    case 102: // GPRMC validity
-      _gps_data_good = _term[0] == 'A';
-      break;
-    case 103: // Latitude
-    case 202:
-      DBG("GOT LAT");
-      _new_latitude = parse_degrees();
-      _new_position_fix = millis();
-      break;
-    case 104: // N/S
-    case 203:
-      if (_term[0] == 'S')
-        _new_latitude = -_new_latitude;
-      break;
-    case 105: // Longitude
-    case 204:
-      _new_longitude = parse_degrees();
-      break;
-    case 106: // E/W
-    case 205:
-      if (_term[0] == 'W')
-        _new_longitude = -_new_longitude;
-      break;
-    case 107: // Speed (GPRMC)
-      _new_speed = parse_decimal();
-      break;
-    case 108: // Course (GPRMC)
-      _new_course = parse_decimal();
-      break;
-    case 109: // Date (GPRMC)
-      _new_date = gpsatol(_term);
-      break;
-    case 206: // Fix data (GPGGA)
-      _gps_data_good = _term[0] > '0';
-      break;
-    case 207: // Number of satelites tracked (GPGGA)
-      _new_sat_count = parse_decimal();
-      break;
-    case 208: // Horizontal Dilution of Position (GPGGA)
-      _new_hdop = parse_decimal();
-      break;
-    case 209: // Altitude (GPGGA)
-      _new_altitude = parse_decimal();
-      break;
-  } /* switch */
+  if (_sentence_type != _GPS_SENTENCE_OTHER && _term[0]) {
+    int term = _term_number;
+    if(_sentence_type == _GPS_SENTENCE_GPGGA)
+      term += 200;
+    else if(_sentence_type == _GPS_SENTENCE_GPRMC)
+      term += 100;
+    else if(_sentence_type == _GPS_SENTENCE_GPGLL)
+      term += 300;
+    DBG("term %d",term);
+    switch(term)
+    {
+      case 101: // Time in both sentences
+      case 201:
+      case 305:
+        _new_time = parse_decimal();
+        _new_time_fix = millis();
+        break;
+      case 102: // GPRMC validity
+      case 306:
+        _gps_data_good = _term[0] == 'A';
+        break;
+      case 103: // Latitude
+      case 202:
+      case 301:
+        DBG("GOT LAT");
+        _new_latitude = parse_degrees();
+        _new_position_fix = millis();
+        break;
+      case 104: // N/S
+      case 203:
+      case 302:
+        if (_term[0] == 'S')
+          _new_latitude = -_new_latitude;
+        break;
+      case 105: // Longitude
+      case 204:
+      case 303:
+        _new_longitude = parse_degrees();
+        break;
+      case 106: // E/W
+      case 205:
+      case 304:
+        if (_term[0] == 'W')
+          _new_longitude = -_new_longitude;
+        break;
+      case 107: // Speed (GPRMC)
+        _new_speed = parse_decimal();
+        break;
+      case 108: // Course (GPRMC)
+        _new_course = parse_decimal();
+        break;
+      case 109: // Date (GPRMC)
+        _new_date = gpsatol(_term);
+        break;
+      case 206: // Fix data (GPGGA)
+        _gps_data_good = _term[0] > '0';
+        break;
+      case 207: // Number of satelites tracked (GPGGA)
+        _new_sat_count = parse_decimal();
+        break;
+      case 208: // Horizontal Dilution of Position (GPGGA)
+        _new_hdop = parse_decimal();
+        break;
+      case 209: // Altitude (GPGGA)
+        _new_altitude = parse_decimal();
+        break;
+    } /* switch */
+  }
 
   return false;
 }

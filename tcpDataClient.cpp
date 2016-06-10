@@ -35,7 +35,7 @@ void tcpDataClient::Main(void) {
 
 void tcpDataClient::SendData(char *data, uint16_t len) {
 	if(isConnected()){
-		DBG("SendData (%d)",len);
+		//DBG("SendData (%d)",len);
 		//char hello[] = "Hello World";
     	//printf("Sending  message to Server : '%s' \n",hello);
     	//socket.send_all(hello, sizeof(hello) - 1);

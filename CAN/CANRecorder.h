@@ -17,17 +17,21 @@ protected:
 	} learningStuffs;
     CANInterface *canItf;
     CANRecorderCalculator *calc;
-    bool activated;
-    uint16_t *dt;
-    uint16_t *nSamples;
-    learningStuffs lStruct;
-    char *dataResult;
+    bool activated;    
     uint16_t offset;
     int nPoints;
     int nPointsMax;
+    char *dataResult;
+    learningStuffs lStruct;
+    uint16_t *dt;
+    uint16_t *nSamples;
+    char ttt[24];
 public:
 	CANRecorder(CANInterface *itf, CANRecorderCalculator *calculator);
 	virtual ~CANRecorder();
+	virtual bool getActivated(void) { return activated; };
+	virtual int getNPoints(void) { return nPoints; };
+	virtual int getNPointsMax(void) { return nPointsMax; };
 	virtual CANRecorderCalculator *GetCalculator() { return calc; };
 	virtual void Activate() { activated = true;};
 	virtual void DeActivate() { activated = false;};

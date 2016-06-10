@@ -4,10 +4,9 @@
 #include "mbed.h"
 #include "MySensor.h"
 #include "LSM303DLH.h"
-#include "MyMemoryAllocator.h"
 #include "Configs.h"
 
-class IMUSensor: public MySensor, public MyMemoryObject {
+class IMUSensor: public MySensor{
 protected:
     uint16_t store[IMU_STORE_SIZE];
     unsigned char stack[IMU_THREAD_STACK_SIZE];

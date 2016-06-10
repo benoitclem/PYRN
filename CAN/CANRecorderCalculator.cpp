@@ -30,7 +30,7 @@ int CANRecorderCalculator::Parse(const char* buff) {
 		memcpy(&calc,buff,sizeof(CANRecorderCalculatorHeader));
 		DBG_MEMDUMP("RecordHdrData",(const char*)&calc,sizeof(CANRecorderCalculatorHeader));
 		if(calc.nChunks>0) {
-			if((calc.nChunks*sizeof(CANRecorderData)) < CAN_RECORDER_ENTRY_STORAGE) {
+			if((calc.nChunks) < CAN_RECORDER_ENTRY_STORAGE) {
 				memcpy(recordData,buff+sizeof(CANRecorderCalculatorHeader),(calc.nChunks*sizeof(CANRecorderData)));
 				recordEntries = (CANRecorderData*)recordData;
 				//DBG_MEMDUMP("DiagData",(const char*)cmd,calc.cmdLen);
@@ -52,17 +52,19 @@ bool CANRecorderCalculator::Validate(void){
 		dataValidity = true;
 		uint8_t s = 0;
 		uint8_t l = 0;
-		uint8_t i =0;
+		uint8_t i = 0;
 		for( ;i<calc.nChunks; i++) {
 			s = recordEntries[i].start;
 			l = recordEntries[i].len;
 			DBG("S = %d | L = %d",s,l);
-			if((s>8)|(s<0)) {
+			// S 0-7
+			// L 1-8
+			if(s>7) {
 				dataValidity = false;
 				ERR("Wrong record start point = %d",s);
 				return false;
 			}
-			if((s+(l-1))>7) {
+			if((s+l)>8) {
 				dataValidity = false;
 				ERR("Wrong record len = %d->%d",s,s+(l-1));
 				return false;

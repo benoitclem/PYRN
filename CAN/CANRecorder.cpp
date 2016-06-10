@@ -34,15 +34,15 @@ CANRecorder::CANRecorder(CANInterface *itf, CANRecorderCalculator *calculator): 
     // Allocation data forresults
     dataResult = (char*) memAlloc.malloc(sizeof(char)*NET_FRAME_ALLOCSZ);
     offset = NET_FRAME_HEADER_SIZE + 1 + calc->GetNChunks()*2;
-
+    DBG("Setting offset = %d, %d, %d",offset,NET_FRAME_HEADER_SIZE,calc->GetNChunks());
     // Set limits
     nPoints = 0;
     nPointsMax = 1; // Becarefull if you increase the max point the Alloc size is going to be bad
 
-    // Network Frame Structure is id(4) | dt (2) | n (2) | nChunk | entries (n*2) | data (n)
+    // Network Frame Structure is id(4) | dt (2) | fSize (2) | nChunk | entries (n*2) | data (n)
     int nChunks = calc->GetNChunks();
 
-    memset(dataResult,0x0, 8 + nChunks*2 + 1);
+    memset(dataResult,0x0, 8 + 1 + nChunks*2);
     *((uint32_t *)dataResult) = calc->GetRxAddr(); // Apply the RX Address to frame header
     dt = (uint16_t*) (dataResult+4);                 // Take the pointer address to frame header dt
     nSamples = (uint16_t*) (dataResult+6); 
@@ -59,6 +59,7 @@ CANRecorder::CANRecorder(CANInterface *itf, CANRecorderCalculator *calculator): 
     // set the filters and wire the interface to send the packets
     SetupCalcFilter();
     canItf->AddCallBackForId(CAN_BUS_DONT_CARE, CAN_ID_PROMISCUOUS_MODE, this);
+    DBG("CACA %d %d %d ", offset, nPoints, nPointsMax);
 }
 
 CANRecorder::~CANRecorder() {
@@ -71,19 +72,27 @@ void CANRecorder::SetupCalcFilter() {
 }
 
 void CANRecorder::Capture(char *data, uint16_t *len) {
-    // TODO: Need to be mutex protected HERE
-    BuffMtx.lock();
-    if(*len > offset) {
-        //DBG("offset = %02x",offset);
-        //*((uint16_t *)(data+6)) = offset;
-        *nSamples = offset;
-        memcpy(data,dataResult,offset);
-        *len = offset;
+    if(!lStruct.isLearning && (nPoints!=0)) {
+        // TODO: Need to be mutex protected HERE
+        BuffMtx.lock();
+        if(*len > offset) {
+            //DBG("offset = %02x",offset);
+            //*((uint16_t *)(data+6)) = offset;
+            //DBG_MEMDUMP("capturing",dataResult,offset);
+            *nSamples = offset;
+            memcpy(data,dataResult,offset);
+            *len = offset;
+        } else {
+            *len = 0;
+        }
+        // Reset the stuffs in any case
         nPoints = 0;
+        offset = NET_FRAME_HEADER_SIZE + 1 + calc->GetNChunks()*2;
+        BuffMtx.unlock();
+    } else {
+        DBG("No point or learning");
+        *len = 0;
     }
-    // Reset the stuffs in any case
-    offset = NET_FRAME_HEADER_SIZE + 1 + calc->GetNChunks()*2;
-    BuffMtx.unlock();
 }
 
 void CANRecorder::event(int ID, void *data) {
@@ -93,7 +102,7 @@ void CANRecorder::event(int ID, void *data) {
         CANMessage *msg = (CANMessage*) data; 
         int id = msg->id;
         char *data = (char*)msg->data;
-        
+
         if(id == calc->GetRxAddr()) {
             //DBG("RX: %d %d",id,calc->GetRxAddr());
             if(lStruct.isLearning) {
@@ -117,19 +126,26 @@ void CANRecorder::event(int ID, void *data) {
                     lStruct.isLearning = false;
                 }
             } else {
+                //DBG("%d %d",nPoints,nPointsMax);
                 if(nPoints < nPointsMax) {
-                int n = calc->GetNChunks();
+                    //DBG("YA");
+                    int n = calc->GetNChunks();
+                    int j = 0;
                     for(uint8_t i = 0; i<n; i++) {
                         // Not super optimized here, we could retrieve the pointer at startup
                         CANRecorderData *entry = calc->GetRecordEntry(i);
                         if((offset + entry->len) < NET_FRAME_ALLOCSZ){
                             BuffMtx.lock();
-                            //DBG("adding %d current size is %d", entry->len, offset);
+                            //DBG("%d adding %d current size is %d", j++,entry->len, offset);
                             memcpy(dataResult+offset,data+entry->start,entry->len);
+                            
+                            //DBG("1 - offset (%d)",offset);
                             offset += entry->len;
+                            //DBG_MEMDUMP("added",dataResult,offset);
                             BuffMtx.unlock();
                         } else {
-                            DBG("full");
+                            //DBG("offset (%d) + entry->len (%d) NETFRAME (%d)",offset,entry->len,NET_FRAME_ALLOCSZ);
+                            //DBG("fully %08X",calc->GetRxAddr());
                         }
                     }
                     nPoints += 1;

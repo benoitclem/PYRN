@@ -17,13 +17,15 @@
 #include "MyMemoryAllocator.h"
 
 #include "IMUSensor.h"
-#include "GPSSensor.h"
+#include "GPSSensorNMEA.h"
+#include "GPSSensorUBX.h"
 
 #include "CANInterface.h"
 #include "CANSniffer.h"
 #include "CANCommunicator6A.h"
 #include "CANDiagSensor.h"
 #include "CANCorrelator.h"
+#include "CANVariationDetector.h"
 
 #include "CANRecorder.h"
 #include "CANRecorderCalculator.h"
@@ -35,6 +37,7 @@
 #include "NTPClient.h"
 #include "ComHandler.h"
 #include "tcpDataClient.h"
+#include "udpDataClient.h"
 
 #include "storageBase.h"
 
@@ -45,6 +48,7 @@
 //#define BLINKER
 //#define THREAD_MONITOR
 //#define APP_TEST
+//#define APP_GPS_UBX_TEST
 //#define APP_CANV10
 //#define CAN_SIMULATOR
 //#define APP_SHARKAN
@@ -54,8 +58,10 @@
 //#define APP_CAN_FILTER_TEST_RX
 //#define APP_CORRELATOR
 //#define APP_CANONAIR
-//#define APP_CANPLAYER
-#define APP_CANONAIR_V2 // This is the sniffing app (CAN Recorder)
+#define APP_CANPLAYER
+//#define APP_GPS
+//#define APP_CAN_VARIATION
+//#define APP_CANONAIR_V2 // This is the sniffing app (CAN Recorder)
 bool printThread;
 
 bool newCalcPending;
@@ -67,6 +73,8 @@ storage *calcStorage;
 ComHandler *com;
 
 CANInterface *c;
+
+//Serial pc(USBTX, USBRX); // tx, rx
 
 void threadMonitor(void const *args) {
     while (true) {
@@ -241,7 +249,21 @@ void MainClass::run(void) {
 		DBG("TEST APP");
 		Thread::wait(1000);
 	}
-	
+#elif defined APP_GPS_UBX_TEST
+	//DBG("TEST GPS UBX APP");
+	GPSSensorNMEA *gps = new GPSSensorNMEA(p13,p14,900);
+	//Serial gps0(p13, p14);  // tx, rx
+	//gps0.printf("$PUBX,41,1,0007,0001,57600,0*29\r\n");
+	//GPSSensorUBX *gps = new GPSSensorUBX(p13,p14,4,1000);
+	//	gps->DoSerialAGPS();
+	Thread::wait(1000);
+	gps->Start();
+	gps->Run();
+	//DBG("caca");
+	while(1) {
+		Thread::wait(1000);
+	}
+	gps->Stop();
 #elif defined APP_SDSPI
 	DBG("SPI SD APP");
 
@@ -322,7 +344,7 @@ void MainClass::run(void) {
 	
 	//printThread = true;
 
-	CANInterface canItf;
+	CANInterface canItf(500000,3,8,500000,6,14);
 	c = &canItf;
 	//int32_t calcIds[2] = {0x728,0x720}; 	// Fiesta instrument IPC
 	//int32_t calcIds[2] = {0x7e8,0x7e0};		// Fiesta essence 
@@ -335,9 +357,25 @@ void MainClass::run(void) {
 	canItf.Start();
 	canItf.Run();
 
+	
 	while(1){
 		Thread::wait(1000);
 	}
+
+	/*
+	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
+	char dataTwo[5] = {0x41,0x42,0x43,0x44,0x45};
+	while(true) {
+		Thread::wait(10);
+		dataOne[0] -= 3;
+		dataOne[2] += 2;
+		dataOne[3] += 1;
+		dataTwo[4] -= 1; 
+		canItf.Send(2,0X456,dataOne,8);
+		Thread::wait(10);
+		canItf.Send(2,0X476,dataTwo,5);
+	}
+	*/
 
 	/*
 	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
@@ -478,18 +516,53 @@ void MainClass::run(void) {
 	canItf.Run();
 
 	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
-	char dataTwo[5] = {0x41,0x42,0x43,0x44,0x45};
+	char dataTwo[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
 	while(true) {
 		DBG("Loop");
+		Thread::wait(80);
+		dataOne[0] -= 3;
+		dataOne[2] += 2;
+		dataOne[3] += 1;
+		dataTwo[0] -= 4;
+		dataTwo[1] += 9;
+		dataTwo[2] += 9;
+		dataTwo[3] += 6;
+
+		canItf.Send(2,0x208,dataOne,8);
+		Thread::wait(20);
+		canItf.Send(2,0x612,dataTwo,8);
+	}
+#elif defined APP_CAN_VARIATION
+
+	DBG("VARIATION APP");
+	
+	//printThread = true;
+
+	CANInterface canItf;
+	c = &canItf;
+	//c->SetFilter(1,0x456);
+	//c->SetFilter(1,0x476);
+	//CANSniffer canSnif(&canItf);
+	CANVariationDetector variator(&canItf,1);
+	//CANCorrelator canBusCorrOne(&canItf,2);
+
+	canItf.Start();
+	canItf.Run();
+
+	char dataOne[8] = {0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38};
+	char dataTwo[5] = {0x41,0x42,0x43,0x44,0x45};
+	while(true) {
 		Thread::wait(1000);
 		dataOne[0] -= 3;
 		dataOne[2] += 2;
 		dataOne[3] += 1;
 		dataTwo[4] -= 1; 
-		canItf.Send(2,0X602,dataOne,8);
+		canItf.Send(2,0X456,dataOne,8);
 		Thread::wait(1000);
-		canItf.Send(2,0X603,dataTwo,5);
+		canItf.Send(2,0X476,dataTwo,5);
 	}
+
+	canItf.Stop();
 #elif defined APP_CANONAIR_V2
 	DBG("CAN APP V2");
 
@@ -501,10 +574,6 @@ void MainClass::run(void) {
 	MyWatchdog wdt(60);
 	PyrnUSBModem modem;
 
-	CANInterface canItf;
-
-
-
 	int connected = modem.connect("a2bouygtel.com","","");
 	//int connected = 0;
 	if(connected != 0) {
@@ -512,10 +581,12 @@ void MainClass::run(void) {
 		NVIC_SystemReset();
 	} else {
 		wdt.Feed();
+		CANInterface canItf;
 		DBG("Connected");
 		// 3G (configure the system to return ASAP for the first connection)
-		unsigned char *sp = (unsigned char*) memAlloc.malloc(COM_HANDLER_THREAD_STACK_SIZE);
-		tcpDataClient comm(sp,COM_HANDLER_THREAD_STACK_SIZE);
+		// unsigned char *sp = (unsigned char*) memAlloc.malloc(COM_HANDLER_THREAD_STACK_SIZE);
+		//tcpDataClient comm(sp,COM_HANDLER_THREAD_STACK_SIZE);
+		udpDataClient comm;
 
 		/*
 		typedef struct _CANRecorderCalculatorHeader {
@@ -531,20 +602,56 @@ void MainClass::run(void) {
 		*/
 
 		LSM303DLH  Accelerometer(p28,p27);
-		GPSSensor *gps = new GPSSensor(p13,p14,4,1000);
+		GPSSensorNMEA *gps = new GPSSensorNMEA(p13,p14,1000);
 		gps->Start();
 		gps->Run();
 
-		char recordData[512];
+		#define RECDTASZ 720
+
+		char recordData[RECDTASZ];
 
 		CANRecorderCalculator *recCalcs[32];
 		CANRecorder *recs[32];
 		uint8_t nMaxRecs = 32;
 		uint8_t currRec = 0;
 
+
+		// Step here to check in which calc setup we are
 		char *config = recordData;
-		int l = comm.GetConfig(config,512);
-		DBG_MEMDUMP("config",config,l);
+		uint32_t index = 0;
+		int l = 0;
+
+		/*
+		int l = comm.GetTestIDs(config,RECDTASZ);
+		DBG_MEMDUMP("TestIds",config,l);
+
+		index = *((int*)config);
+
+		DBG("TestIds %d",index);		
+
+		CANSniffer *canSniff = new CANSniffer(&canItf);
+		
+		canItf.Start();
+		canItf.Run();
+
+		// Wait for an id (in index to reuse some variables) to change
+		if(canSniff->wait(index,2000)){
+			DBG("Got answer, this is configuration 0");	
+			index = 0;
+		} else {
+			DBG("No answer, this is configuration 1");	
+			index = 1;
+		}
+
+		canItf.Stop();
+
+		delete(canSniff);
+
+		*/
+
+		DBG("Index config value is %d",index);
+		l = comm.GetConfig(index,config,RECDTASZ);
+		DBG_MEMDUMP("Config",config,l);
 
 		/*
 		0x10006cfc: 03 08 06 00 00 02 02 02 03 01 bb 05 00 00 01 04 ................
@@ -554,11 +661,13 @@ void MainClass::run(void) {
 		uint8_t nCalcs = *((uint8_t*)(config));
 		//DBG("NCalcs = %d",nCalcs);
 		int offset = 1;
-		char calcData[128];
+		//char calcData[128];
+		#define CALC_DATA_SZ 128
+		char *calcData = (char*) memAlloc.malloc(sizeof(char)*CALC_DATA_SZ);
 		CANRecorderCalculatorHeader *pCalc = (CANRecorderCalculatorHeader *) calcData;
 		while(offset<l) {
 			if(currRec<nMaxRecs){
-				memset(calcData,0,128);
+				memset(calcData,0,CALC_DATA_SZ);
 				pCalc->hdrType = 2;
 				pCalc->idCalc = 0x0;
 				pCalc->speed = 500;
@@ -575,17 +684,28 @@ void MainClass::run(void) {
 					offset += 2;
 				}
 
-				recCalcs[currRec] = new CANRecorderCalculator(calcData);
-				recs[currRec] = new CANRecorder(&canItf,recCalcs[currRec]);
-				currRec++;
+				CANRecorderCalculator *calc = new CANRecorderCalculator(calcData);
+				if(calc->Ready()) {
+					recCalcs[currRec] = calc;
+					recs[currRec] = new CANRecorder(&canItf,recCalcs[currRec]);
+					currRec++;
+				} else {
+					delete(calc);
+				}
 			} else {
 				DBG("Reached max recorders");
 				break;
 			}
 		}
+		memAlloc.free(calcData);
 
 		DBG("Got %d calculators allocated",currRec);
 		
+		PrintActiveThreads();
+		for(int p = 0; p<nCalcs; p++){
+			DBG("PROUT %d %d",recs[p]->getNPoints(),recs[p]->getNPointsMax());
+		} 
+
 		//CANSniffer canSnif(&canItf);
 		
 		canItf.Start();
@@ -594,28 +714,48 @@ void MainClass::run(void) {
 		canItf.Run();
 		//comm.Run();
 
+		uint16_t pktCount = 0;
+
+		PrintActiveThreads();
+		for(int p = 0; p<nCalcs; p++){
+			DBG("PROUT %d %d",recs[p]->getNPoints(),recs[p]->getNPointsMax());
+		} 
+
 		while(1) {
+			// Buffer receiving the captured data
 			char buff[64];
-			memset(recordData,0,512);
+			// Final Buffer received the recorded data
+			memset(recordData,0,RECDTASZ);
 
-			DBG("MainThread Loop");
+			//DBG("MainThread Loop");
 			wdt.Feed();
-			Thread::wait(100);
+			Thread::wait(200);
 			uint16_t offset = 0;
-			uint16_t len = 64;
+			uint16_t len;
 
-			*((uint8_t*)(recordData+offset)) = 0x01; // This is a frame array
-
+			// Tell this is a frame 
+			*((uint8_t*)(recordData+offset)) = 0x02;
 			offset += 1;
 
+			// Packet counter
+			*((uint16_t*)(recordData+offset)) = pktCount;
+			pktCount += 1;
+			offset += 2;
+
+			// Do the capture
 			for(uint8_t i = 0; i<currRec; i++) {
+				DBG("capture data %d %p",i,recs[i]);
 				len = 64;
 				recs[i]->Capture(buff,&len);
-				//DBG_MEMDUMP("capturedData",buff,len);
-				*((uint16_t*)(recordData+offset)) = len;
-				offset += 2;
-				memcpy(recordData+offset,buff,len);
-				offset += len;
+				if(len!=0) {
+					DBG_MEMDUMP("capturedData",buff,len);
+					*((uint16_t*)(recordData+offset)) = len;
+					offset += 2;
+					memcpy(recordData+offset,buff,len);
+					offset += len;
+				} else {
+					WARN("Recorder still learning dt or no impact");
+				}
 			}
 
 			// IMU SAMPLING
@@ -682,10 +822,10 @@ void MainClass::run(void) {
     		offset+= sizeof(imuFrame);
 
     		// GPS
-    		GPSSensor::gpsImpact impact;
+    		GPSSensorNMEA::gpsImpact impact;
     		bool r = gps->GetImpact(&impact);
     		if(r){
-    			DBG_MEMDUMP("gpsImpact",(char*)&impact,sizeof(GPSSensor::gpsImpact));
+    			//DBG_MEMDUMP("gpsImpact",(char*)&impact,sizeof(GPSSensor::gpsImpact));
 
     			/*
     			uint32_t date;
@@ -720,14 +860,14 @@ void MainClass::run(void) {
 
 	    			uint8_t starthdop;	// 1
 	    			uint8_t lenhdop;    // 1
-	    			GPSSensor::gpsImpact gpsi; // sizeof(GPSSensor::gpsImpact)
+	    			GPSSensorNMEA::gpsImpact gpsi; // sizeof(GPSSensor::gpsImpact)
 	    		} __attribute__((packed)) gpsFrame;
 
 	    		gpsFrame *f = (gpsFrame*) (recordData+offset);
 	    		f->sz = sizeof(gpsFrame) - 2;
 	    		f->id = 0x5A5A5A5A;
 	    		f->dt = 0;
-	    		f->n = sizeof(GPSSensor::gpsImpact);
+	    		f->n = sizeof(GPSSensorNMEA::gpsImpact);
 	    		f->nChunk = 6;
     			f->startdate = 0;	// 1
     			f->lendate = 4;    // 1
@@ -742,23 +882,47 @@ void MainClass::run(void) {
     			f->starthdop = 5;	// 1
     			f->lenhdop = 2;
 
-	    		memcpy(&(f->gpsi),&impact,sizeof(GPSSensor::gpsImpact));
+	    		memcpy(&(f->gpsi),&impact,sizeof(GPSSensorNMEA::gpsImpact));
 
 	    		offset+= sizeof(gpsFrame);
 
     		} else {
-    			DBG("Could not get gps impact");
+    			//DBG("Could not get gps impact");
     		}
-
-
 
     		// GPS Position
 
-			//DBG_MEMDUMP("ALL CAPTURE DATA", recordData, offset);
+			DBG_MEMDUMP("ALL CAPTURE DATA", recordData, offset);
 
 			comm.SendData(recordData,offset);
 		}	
 	}
+#elif defined APP_GPS
+	DBG("GPS APP");
+
+	MyWatchdog wdt(60);
+
+	wdt.Feed();
+	DBG("Connected");
+
+	GPSSensor *gps = new GPSSensor(p13,p14,4,500);
+	gps->Start();
+	gps->Run();
+
+	while(1) {
+		wdt.Feed();
+
+		// GPS
+		GPSSensor::gpsImpact impact;
+		bool r = gps->GetImpact(&impact);
+		if(r){
+			DBG("IMPACT");
+		} else {
+			DBG("Could not get gps impact");
+		}
+
+		Thread::wait(100);
+	}	
 
 #elif defined APP_CANONAIR
 	DBG("CAN APP");
@@ -769,7 +933,7 @@ void MainClass::run(void) {
 	MyWatchdog wdt(60);
 
 	/*
-	GPSSensor *gps = new GPSSensor(p13,p14,4,1000);
+	GPSSensorNMEA *gps = new GPSSensorNMEA(p13,p14,4,1000);
 	gps->Start();
 	gps->Run();
 
@@ -833,7 +997,7 @@ void MainClass::run(void) {
 		IMUSensor *imu = new IMUSensor(p28,p27,250);
 		DBG("ADD Sensor IMU");
 		staticSensors.AddSensor(imu);
-		GPSSensor *gps = new GPSSensor(p13,p14,4,1000);
+		GPSSensorNMEA *gps = new GPSSensorNMEA(p13,p14,4,1000);
 		DBG("ADD Sensor GPS");
 		staticSensors.AddSensor(gps);
 		
@@ -1169,6 +1333,7 @@ int main(void) {
 	set_time(0);
     debug_init();
     debug_set_newline("\r\n");
+    //debug_set_speed(9600);
     debug_set_speed(230400);
     //debug_set_speed(460800);
     //debug_set_speed(921600);
