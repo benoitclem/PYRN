@@ -1,5 +1,11 @@
+.gitignore
 3G/WanModem.d
 3G/WanModem.o
+L3GD20H.d
+L3GD20H.o
+Pyrn3GModem/uBloxUSBModem.o
+SaraU2DongleInitializer.d
+SaraU2DongleInitializer.o
 CAN/CANCommon.d
 CAN/CANCommon.o
 CAN/CANCommunicator6A.d

@@ -52,7 +52,7 @@ void USBHost::usb_process() {
     bool bulkListState;
     bool interruptListState;
     USBEndpoint * ep;
-    uint8_t i, j, res, timeout_set_addr = 10;
+    uint8_t i, j, res, timeout_set_addr = 50;
     uint8_t buf[8];
     bool too_many_hub;
     int idx;
@@ -113,6 +113,7 @@ void USBHost::usb_process() {
 
                       for (j = 0; j < timeout_set_addr; j++) {
 
+                          USB_DBG("retry n %d",j);
                           resetDevice(&devices[i]);
 
                           // set size of control endpoint
@@ -126,7 +127,7 @@ void USBHost::usb_process() {
                           res = getDeviceDescriptor(&devices[i], buf, 8);
 
                           if (res != USB_TYPE_OK) {
-                              USB_ERR("usb_thread could not read dev descr");
+                              USB_ERR("usb_thread could not read dev descr error(%d)",res);
                               continue;
                           }
 
@@ -148,6 +149,7 @@ void USBHost::usb_process() {
                           res = getDeviceDescriptor(&devices[i], buf, 8);
 
                           if (res == USB_TYPE_OK) {
+
                               break;
                           }
 
@@ -849,7 +851,7 @@ USB_TYPE USBHost::enumerate(USBDeviceConnected * dev, IUSBEnumerator* pEnumerato
       res = getDeviceDescriptor(dev, data, DEVICE_DESCRIPTOR_LENGTH);
 
       if (res != USB_TYPE_OK) {
-          USB_DBG("GET DEV DESCR FAILED");
+          USB_DBG("GET DEV DESCR FAILED ERR(%d)",res);
           return res;
       }
 

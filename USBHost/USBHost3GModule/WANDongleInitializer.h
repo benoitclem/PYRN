@@ -29,8 +29,8 @@
 #include "IUSBEnumerator.h"
 
 // [TODO] move these declarations to a proper place
-#define WANDONGLE_MAX_SERIAL_PORTS 4
-#define WANDONGLE_MAX_INITIALIZERS 6
+#define WANDONGLE_MAX_SERIAL_PORTS 7
+#define WANDONGLE_MAX_INITIALIZERS 1
 
 #define WAN_DONGLE_TYPE_UNKNOWN    (-1)
 

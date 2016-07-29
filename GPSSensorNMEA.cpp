@@ -109,7 +109,7 @@ void GPSSensorNMEA::Sample(void) {
             len = GetLine();
             
             //DBG("GotLine(%d) %s",len,recvBuff);
-            //DBG_MEMDUMP("GPSData",(const char*)recvBuff,len);
+            DBG_MEMDUMP("GPSData",(const char*)recvBuff,len);
             
             for(unsigned int i = 0; i < len; i++) {
                 // Insert all data to gpsParser

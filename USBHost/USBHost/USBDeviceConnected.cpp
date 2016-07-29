@@ -71,6 +71,7 @@ bool USBDeviceConnected::addInterface(uint8_t intf_nb, uint8_t intf_class, uint8
 
 bool USBDeviceConnected::addEndpoint(uint8_t intf_nb, USBEndpoint * ept) {
     if ((intf_nb >= MAX_INTF) || (intf[intf_nb].in_use == false) || (intf[intf_nb].nb_endpoint >= MAX_ENDPOINT_PER_INTERFACE)) {
+
         return false;
     }
     intf[intf_nb].nb_endpoint++;
@@ -101,10 +102,12 @@ void USBDeviceConnected::disconnect() {
 
 
 USBEndpoint * USBDeviceConnected::getEndpoint(uint8_t intf_nb, ENDPOINT_TYPE type, ENDPOINT_DIRECTION dir, uint8_t index) {
+    USB_DBG("oui - %d", intf_nb);
     if (intf_nb >= MAX_INTF) {
         return NULL;
     }
     for (int i = 0; i < MAX_ENDPOINT_PER_INTERFACE; i++) {
+        USB_DBG("type %02x : %02x",intf[intf_nb].ep[i]->getType(),intf[intf_nb].ep[i]->getDir());
         if ((intf[intf_nb].ep[i]->getType() == type) && (intf[intf_nb].ep[i]->getDir() == dir)) {
             if(index) {
                 index--;

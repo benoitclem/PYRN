@@ -23,7 +23,7 @@ protected:
     imuImpact   impact;
     LSM303DLH   Accelerometer;
 public:
-    IMUSensor(PinName sda, PinName scl, uint32_t idle = 1000);
+    IMUSensor(I2C *i2cDevice, uint32_t idle = 1000);
     virtual void InitResultsStatic(void);
     virtual void Loop(void);
     virtual void StoreLastImpact(void);

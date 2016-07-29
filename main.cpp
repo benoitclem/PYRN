@@ -16,7 +16,9 @@
 #include "MyBlinker.h"
 #include "MyMemoryAllocator.h"
 
-#include "IMUSensor.h"
+#include "LSM303DLH.h"
+#include "L3GD20H.h"
+//#include "IMUSensor.h"
 #include "GPSSensorNMEA.h"
 #include "GPSSensorUBX.h"
 
@@ -31,6 +33,7 @@
 #include "CANRecorderCalculator.h"
 
 #include "PyrnUSBModem.h"
+#include "uBloxUSBModem.h"
 #include "HTTPClient.h"
 #include "TCPSocketConnection.h"
 
@@ -45,7 +48,7 @@
 
 #include "sd.h"
 
-//#define BLINKER
+#define BLINKER
 //#define THREAD_MONITOR
 //#define APP_TEST
 //#define APP_GPS_UBX_TEST
@@ -58,10 +61,11 @@
 //#define APP_CAN_FILTER_TEST_RX
 //#define APP_CORRELATOR
 //#define APP_CANONAIR
-#define APP_CANPLAYER
+//#define APP_CANPLAYER
 //#define APP_GPS
 //#define APP_CAN_VARIATION
 //#define APP_CANONAIR_V2 // This is the sniffing app (CAN Recorder)
+#define APP_CANONAIR_V3G
 bool printThread;
 
 bool newCalcPending;
@@ -897,6 +901,62 @@ void MainClass::run(void) {
 			comm.SendData(recordData,offset);
 		}	
 	}
+
+#elif defined APP_CANONAIR_V3G
+
+	Thread::wait(1000);
+	DBG("APP 3G Test");
+
+	I2C dev(p28,p27);
+	INFO("I2C Init (400kHz)");
+    dev.frequency(400000);
+
+	LSM303DLH  Accelerometer(&dev);
+	L3GD20H Gyroscope(&dev);
+
+	while(1) {
+		float lax,lay,laz,lmx,lmy,lmz,lgx,lgy,lgz;              // Locals
+		Accelerometer.readAcc(&lax,&lay,&laz);
+		Accelerometer.readMag(&lmx,&lmy,&lmz);
+		Gyroscope.readGyr(&lgx,&lgy,&lgz);
+		DBG("%3.4f %3.4f %3.4f %3.4f %3.4f %3.4f %3.4f %3.4f %3.4f",lax,lay,laz,lmx,lmy,lmz,lgx,lgy,lgz);
+		Thread::wait(100);
+	}
+
+
+	uBloxUSBModem modem = uBloxUSBModem(p22,p21);
+	if(modem.init()) {
+		DBG("Got SARA U2 Modem");
+		int connected = modem.connect("sl2sfr","","");
+		if(connected != 0) {
+			DBG("Nope, we could not connect");
+		} else {
+			char recordData[1024];
+			DBG("Everything goes right");
+			udpDataClient comm;
+			uint32_t index = 0;
+			int l = comm.GetConfig(index,recordData,1024);
+			DBG_MEMDUMP("Config",recordData,l);
+
+		}
+
+	} else {
+		DBG("Could not connect SARA U2 Modem");	
+	}
+	//
+
+	//modem.PulseOnOff();
+	Thread::wait(5000);
+
+	GPSSensorNMEA *gps = new GPSSensorNMEA(p13,p14,1000);
+	gps->Start();
+	gps->Run();
+
+	while(1)
+		Thread::wait(100);
+
+	gps->Stop();
+
 #elif defined APP_GPS
 	DBG("GPS APP");
 
